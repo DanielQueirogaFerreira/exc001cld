@@ -373,6 +373,60 @@ document.getElementById('go').onclick=()=>{
 };
 const FS_REBUILD=()=>buildStrings();
 
+// ---------- imersão: só a arte, sem números ----------
+(function(){
+  const framed = window.self!==window.top;
+  const st=document.createElement('style');
+  st.textContent =
+    '.shell,header,footer{transition:opacity .5s}'+
+    'html.zen .shell,html.zen header,html.zen footer{opacity:0;pointer-events:none}'+
+    '#zenOut{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));'+
+    'bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;width:30px;height:30px;'+
+    'border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.4);'+
+    'color:#fff;opacity:0;pointer-events:none;transition:opacity .4s;display:grid;'+
+    'place-items:center;cursor:pointer;padding:0;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}'+
+    'html.zen #zenOut{opacity:.34;pointer-events:auto}'+
+    '#zenOut:hover,#zenOut:focus-visible{opacity:.95}'+
+    '#zenOut svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}';
+  document.head.appendChild(st);
+
+  const EYE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  const EYE_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11.05 6.03 11.5 6 12 6c6.4 0 10 6 10 6s-1.2 2-3.3 3.7M6.4 8.3C3.9 9.9 2 12 2 12s3.6 6.5 10 6.5c1.3 0 2.5-.2 3.5-.6"/></svg>';
+
+  function setZen(on){
+    document.documentElement.classList.toggle('zen', !!on);
+    if(btn){ btn.setAttribute('aria-pressed', !!on); btn.innerHTML = on?EYE_OFF:EYE; }
+  }
+  const isZen=()=>document.documentElement.classList.contains('zen');
+
+  // botão no painel de controlos da própria peça, ao lado do ecrã inteiro
+  let btn=null;
+  const fsb=document.getElementById('bFs');
+  if(fsb&&fsb.parentNode){
+    btn=document.createElement('button');
+    btn.className='fsbtn'; btn.id='bZen';
+    btn.setAttribute('aria-pressed','false');
+    btn.title='Imersão: esconder números'; btn.setAttribute('aria-label',btn.title);
+    btn.innerHTML=EYE;
+    btn.addEventListener('click',()=>setZen(!isZen()));
+    fsb.parentNode.insertBefore(btn, fsb);
+    if(framed) btn.style.display='none';        // dentro do painel manda a barra
+  }
+  // saída flutuante, para quando a peça corre sozinha e tudo está escondido
+  if(!framed){
+    const out=document.createElement('button');
+    out.id='zenOut'; out.innerHTML=EYE_OFF;
+    out.title='Sair da imersão'; out.setAttribute('aria-label',out.title);
+    out.addEventListener('click',()=>setZen(false));
+    document.body.appendChild(out);
+  }
+  addEventListener('message',e=>{ if(e.data&&e.data.exc==='zen') setZen(e.data.on); });
+  addEventListener('keydown',e=>{
+    if((e.key==='z'||e.key==='Z') && !e.metaKey && !e.ctrlKey){ setZen(!isZen()); }
+    if(e.key==='Escape' && isZen()) setZen(false);
+  });
+})();
+
 // ---------- ecrã inteiro, persistente entre páginas ----------
 (function(){
   const root=document.documentElement;
