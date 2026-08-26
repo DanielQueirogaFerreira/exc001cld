@@ -31,11 +31,13 @@
   #stage{position:fixed;inset:0;z-index:10;background:var(--void)}
   #stage[hidden]{display:none}
   #frame{width:100%;height:100%;border:0;display:block}
-  .bar{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));left:50%;
-    transform:translateX(-50%);z-index:11;display:flex;align-items:center;gap:2px;
+  /* canto do polegar: operação com uma mão, longe da câmara frontal */
+  .bar{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));
+    bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:11;
+    display:flex;align-items:center;gap:2px;
     padding:4px;border:1px solid var(--line);border-radius:999px;
-    background:rgba(5,3,13,.72);backdrop-filter:blur(10px);
-    opacity:.55;transition:opacity .25s}
+    background:rgba(5,3,13,.78);backdrop-filter:blur(10px);
+    opacity:.72;transition:opacity .25s}
   .bar:hover,.bar:focus-within{opacity:1}
   .bar button{font:inherit;font-size:9px;letter-spacing:.1em;color:var(--dim);
     background:transparent;border:0;border-radius:999px;padding:5px 9px;cursor:pointer;
@@ -146,13 +148,18 @@
   const btn=document.getElementById('bFs');
   const framed = window.self!==window.top;
 
-  // dentro do painel EXC: a barra de cima trata de voltar e do ecrã inteiro,
+  // dentro do painel EXC: a barra de baixo trata de voltar e do ecrã inteiro,
   // e o modo nunca cai porque o documento de cima nunca é recarregado
   if(framed){
     if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
     document.querySelectorAll('a[data-nav]').forEach(a=>{
       const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
     });
+    // reserva o canto do polegar para a barra do painel
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
     return;
   }
 
@@ -186,7 +193,6 @@
   document.addEventListener('fullscreenchange',sync);
   document.addEventListener('webkitfullscreenchange',sync);
 
-  // aberto em separador próprio já com pedido: entra ao primeiro gesto válido
   if(can && wanted() && !isOn()){
     req();
     const evs=['click','pointerup','touchend','keydown'];
