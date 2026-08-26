@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PRUMO — sete prumos e um leito</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --breu:#100D0A;
+    --osso:#EDE3D2;
+    --dim:#8C7F6C;
+    --line:rgba(237,227,210,.2);
+    --ocre:#D9A441;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--breu);color:var(--osso);overflow:hidden}
+  body{font-family:"IBM Plex Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  .shell{position:fixed;inset:0;pointer-events:none;display:grid;
+    grid-template-rows:auto 1fr auto;padding:clamp(14px,2.4vw,30px)}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+  h1{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;
+    font-size:clamp(30px,7vw,78px);line-height:.85;letter-spacing:-.04em;text-transform:uppercase}
+  h1 em{display:block;font-style:normal;font-weight:500;font-family:"IBM Plex Mono",monospace;
+    font-size:clamp(9px,1.5vw,12px);letter-spacing:.34em;color:var(--dim);margin-top:1em}
+  .cartel{max-width:31ch;text-align:right;font-size:11px;line-height:1.75;color:var(--dim);font-weight:300}
+  .cartel b{color:var(--osso);font-weight:500}
+
+  .readout{align-self:end;display:flex;gap:clamp(12px,2.6vw,30px);flex-wrap:wrap;
+    border-top:1px solid var(--line);padding-top:9px;margin-bottom:13px;font-size:11px}
+  .cell span{display:block;color:var(--dim);font-size:9px;letter-spacing:.22em;margin-bottom:3px}
+  .cell b{font-weight:500;font-variant-numeric:tabular-nums;font-size:14px}
+  .bar-coh{display:inline-block;width:46px;height:3px;background:rgba(237,227,210,.18);
+    vertical-align:3px;margin-left:7px;border-radius:2px;overflow:hidden}
+  .bar-coh i{display:block;height:100%;background:var(--ocre);width:0}
+
+  .deck{display:flex;gap:7px;flex-wrap:wrap;align-items:center;pointer-events:auto}
+  .group{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;
+    background:rgba(16,13,10,.72);backdrop-filter:blur(8px)}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    display:inline-block;text-decoration:none;line-height:normal;
+    background:transparent;color:var(--dim);border:0;border-right:1px solid var(--line);
+    padding:6px 9px;cursor:pointer;transition:.18s}
+  .group button:last-child{border-right:0}
+  button:hover,a.btn:hover{color:var(--osso);background:rgba(217,164,65,.16)}
+  button[aria-pressed="true"]{background:var(--ocre);color:var(--breu)}
+  button:focus-visible,a.btn:focus-visible{outline:2px solid var(--ocre);outline-offset:-2px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+  .hint{font-size:10px;color:var(--dim);letter-spacing:.08em;margin-left:auto;
+    text-align:right;transition:opacity .8s;line-height:1.7}
+  .hint.gone{opacity:0}
+
+  .ask{position:fixed;inset:0;display:grid;place-items:center;z-index:5;pointer-events:auto;
+    background:radial-gradient(60% 60% at 50% 50%,rgba(16,13,10,.86),rgba(16,13,10,.97));
+    transition:opacity .5s}
+  .ask.off{opacity:0;pointer-events:none}
+  .ask[hidden]{display:none}
+  .ask button{border:1px solid var(--ocre);color:var(--osso);padding:16px 30px;font-size:10px;
+    letter-spacing:.28em;background:transparent}
+  .ask p{margin-top:16px;font-size:11px;color:var(--dim);line-height:2;text-align:center;max-width:34ch}
+  @media (max-width:640px){ .cartel{display:none} .readout{gap:14px} }
+  @media (pointer:coarse){ button,a.btn{padding:8px 10px;font-size:9.5px} }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Pêndulos harmónicos sobre leito de areia, guiados pela inclinação do aparelho"></canvas>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1>Prumo<em>sete pêndulos · gravidade real · leito granular</em></h1>
+    </div>
+    <p class="cartel">Sete prumos em triângulo, o do meio mais longo e mais pesado. Não dançam
+      sozinhos: <b>pendem da gravidade real</b> e só se movem quando você move o aparelho. Inclinar
+      desvia-os, e eles voltam ao prumo — <b>o dedo longe dos fios trabalha a areia</b>.</p>
+  </header>
+
+  <div class="readout">
+    <div class="cell"><span>PESOS</span><b id="rN">—</b></div>
+    <div class="cell"><span>Σ MASSA</span><b id="rSum">—</b></div>
+    <div class="cell"><span>MÉDIA</span><b id="rAvg">—</b></div>
+    <div class="cell"><span>SINCRONIA</span><b id="rCoh">—<i class="bar-coh"><i id="cohBar"></i></i></b></div>
+    <div class="cell"><span>INCLINAÇÃO</span><b id="rTilt">—</b></div>
+    <div class="cell"><span>ESTADO</span><b id="rState">—</b></div>
+  </div>
+
+  <div class="deck">
+    <div class="group">
+      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    </div>
+    <div class="group" role="group" aria-label="Matéria do leito">
+      <button data-mat="0">Pó</button>
+      <button data-mat="1" aria-pressed="true">Areia</button>
+      <button data-mat="2">Cascalho</button>
+    </div>
+    <div class="group" role="group" aria-label="Dedo no leito">
+      <button data-tool="0" aria-pressed="true">Despejar</button>
+      <button data-tool="1">Escavar</button>
+    </div>
+    <div class="group">
+      <button id="bSound" aria-pressed="false">Som</button>
+      <button id="bSync">A prumo</button>
+      <button id="bShake">Sacudir</button>
+      <button id="bWipe">Repor leito</button>
+      <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    </div>
+    <p class="hint" id="hint">incline o aparelho e os prumos seguem · arraste um peso · toque na areia<br>
+      <span id="fallback" hidden>sem sensor: setas do teclado inclinam, espaço sacode</span></p>
+  </div>
+</div>
+
+<div class="ask" id="ask" hidden>
+  <div style="text-align:center">
+    <button id="bAsk">ATIVAR SENSORES</button>
+    <p>o navegador só entrega a inclinação depois da sua autorização<br>nada é gravado nem enviado</p>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'), ctx=cv.getContext('2d',{alpha:false});
+const off=document.createElement('canvas'), octx=off.getContext('2d',{alpha:false});
+const tr=document.createElement('canvas'), trx=tr.getContext('2d');   // rastos
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ================= leito granular =================
+const TONES=[[233,220,196],[217,164,65],[180,85,45],[122,96,74],[110,124,140],[74,58,48]];
+const MAT=[{slip:1.00,drift:0.30},{slip:0.82,drift:0.10},{slip:0.42,drift:0.02}];
+let mat=1, CW=0,CH=0,CELLS=0, cell=null, img=null, px=null, liq=0;
+let BEDTOP=0.72;
+
+function buildBed(){
+  const vw=Math.max(320,innerWidth), vh=Math.max(320,innerHeight);
+  const s=Math.max(3.0, Math.min(5.0, vw/130));
+  CW=Math.max(90,Math.round(vw/s)); CH=Math.max(120,Math.round(vh/s)); CELLS=CW*CH;
+  off.width=CW; off.height=CH;
+  img=octx.createImageData(CW,CH); px=img.data;
+  for(let i=3;i<px.length;i+=4) px[i]=255;
+  cell=new Uint8Array(CELLS);
+  seedBed();
+}
+function seedBed(){
+  cell.fill(0);
+  const base=Math.floor(CH*BEDTOP);
+  for(let y=base;y<CH;y++){
+    const band=1+Math.floor((y-base)/((CH-base)/TONES.length));
+    for(let x=0;x<CW;x++){
+      const wob=Math.sin(x*0.06)*1.4+Math.sin(x*0.019)*2.4;
+      cell[y*CW+x]=(y+wob>base)?Math.min(TONES.length,band):0;
+    }
+  }
+}
+const DIRS=[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+function mv(i,x,y,d){
+  const nx=x+d[0], ny=y+d[1];
+  if(nx<0||nx>=CW||ny<0||ny>=CH) return false;
+  const j=ny*CW+nx; if(cell[j]) return false;
+  cell[j]=cell[i]; cell[i]=0; return true;
+}
+function flow(){
+  const m=MAT[mat], slip=Math.min(1,m.slip+liq*0.6), drift=m.drift+liq*0.5;
+  let k=Math.round(Math.atan2(gy,gx)/(Math.PI/4)); k=((k%8)+8)%8;
+  const P=DIRS[k], A=DIRS[(k+1)%8], B=DIRS[(k+7)%8];
+  const xs=P[0]>0?CW-1:0, xe=P[0]>0?-1:CW, xd=P[0]>0?-1:1;
+  const ys=P[1]>0?CH-1:0, ye=P[1]>0?-1:CH, yd=P[1]>0?-1:1;
+  for(let y=ys;y!==ye;y+=yd){
+    for(let x=xs;x!==xe;x+=xd){
+      const i=y*CW+x; if(!cell[i]) continue;
+      if(mv(i,x,y,P)) continue;
+      if(Math.random()<slip){
+        const f=Math.random()<0.5?A:B, s2=f===A?B:A;
+        if(mv(i,x,y,f)) continue;
+        if(mv(i,x,y,s2)) continue;
+      }
+      if(drift>0.02 && Math.random()<drift*0.3) mv(i,x,y,Math.random()<0.5?A:B);
+    }
+  }
+}
+// o peso abre sulco no leito e atira os grãos para cima
+function carve(sx,sy,rad){
+  const cxg=Math.round(sx/innerWidth*CW), cyg=Math.round(sy/innerHeight*CH);
+  const r=Math.max(1,Math.round(rad/innerWidth*CW));
+  for(let dy=-r;dy<=r;dy++){
+    const y=cyg+dy; if(y<0||y>=CH) continue;
+    for(let dx=-r;dx<=r;dx++){
+      const x=cxg+dx; if(x<0||x>=CW) continue;
+      if(dx*dx+dy*dy>r*r) continue;
+      const i=y*CW+x; const v=cell[i]; if(!v) continue;
+      const ox=Math.round(x-gx*(r+2)+(Math.random()*3-1))|0;
+      const oy=Math.round(y-gy*(r+2)+(Math.random()*3-1))|0;
+      cell[i]=0;
+      if(ox>=0&&ox<CW&&oy>=0&&oy<CH && !cell[oy*CW+ox]) cell[oy*CW+ox]=v;
+    }
+  }
+}
+
+// ================= gravidade real =================
+let gx=0, gy=1, tilt=0, haveSensor=false, lastMag=9.81;
+function setG(ax,ay){
+  const m=Math.hypot(ax,ay)||1;
+  gx=gx*0.85+(ax/m)*0.15; gy=gy*0.85+(ay/m)*0.15;
+  const n=Math.hypot(gx,gy)||1; gx/=n; gy/=n;
+  tilt=Math.atan2(gx,gy)*180/Math.PI;
+}
+function onMotion(e){
+  const a=e.accelerationIncludingGravity; if(!a||a.x===null) return;
+  haveSensor=true; setG(-a.x, a.y);
+  const mag=Math.hypot(a.x,a.y,a.z||0), jerk=Math.abs(mag-lastMag); lastMag=mag;
+  if(jerk>4.5){ liq=Math.min(1,liq+jerk*0.06); kick(jerk*0.06); }
+}
+function onOrient(e){ if(haveSensor||e.beta===null) return;
+  setG(Math.sin(e.gamma*Math.PI/180), Math.sin(e.beta*Math.PI/180)); }
+function listen(){ addEventListener('devicemotion',onMotion); addEventListener('deviceorientation',onOrient); }
+const ask=document.getElementById('ask');
+const needsAsk = typeof DeviceMotionEvent!=='undefined' &&
+                 typeof DeviceMotionEvent.requestPermission==='function';
+document.getElementById('bAsk').onclick=async()=>{
+  if(needsAsk){
+    try{ await DeviceMotionEvent.requestPermission(); }catch(e){}
+    try{ if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
+      await DeviceOrientationEvent.requestPermission(); }catch(e){}
+  }
+  listen(); ask.classList.add('off'); setTimeout(()=>ask.hidden=true,600);
+};
+if(needsAsk) ask.hidden=false; else { ask.hidden=true; listen(); }
+addEventListener('keydown',e=>{
+  const k=e.key;
+  if(k==='ArrowLeft'&&!haveSensor) setG(-0.7,0.7);
+  else if(k==='ArrowRight'&&!haveSensor) setG(0.7,0.7);
+  else if(k==='ArrowUp'&&!haveSensor) setG(0,-1);
+  else if(k==='ArrowDown'&&!haveSensor) setG(0,1);
+  else if(k===' '){ e.preventDefault(); liq=1; kick(0.5); }
+});
+
+// ================= os pesos =================
+// Sete prumos em triângulo: o do meio é o mais longo e mais pesado,
+// e os três de cada lado encurtam por igual. Não dançam sozinhos —
+// pendem da gravidade real e só se movem quando o aparelho se move.
+const NW=7;
+let W=[], ANCH=0, G=1300;
+function buildPend(){
+  const vw=innerWidth, vh=innerHeight;
+  ANCH = vh*0.135;
+  const Lmax = vh*0.30;                       // curtos e no alto
+  const T0 = 1.65;                            // período do peso central
+  G = 4*Math.PI*Math.PI*Lmax/(T0*T0);
+  const gAng=Math.atan2(gy,gx);
+  W=[];
+  for(let i=0;i<NW;i++){
+    const d=Math.abs(i-3);                    // distância ao centro: 0,1,2,3
+    const L=Lmax*(1-0.19*d);
+    const rad=6+11*(L/Lmax);
+    W.push({
+      L, a:gAng, w:0, rad,
+      mass: Math.round(24+210*Math.pow(L/Lmax,1.8)),
+      ax:0, ay:ANCH, x:0, y:0, held:null,
+      tone: TONES[d%TONES.length]
+    });
+  }
+  const pad=Math.max(34, vw*0.17);            // conjunto compacto ao centro
+  W.forEach((p,i)=>{ p.ax = pad + (vw-pad*2)*(i/(NW-1)); });
+  place();
+}
+function place(){
+  for(const p of W){ p.x=p.ax+Math.cos(p.a)*p.L; p.y=p.ay+Math.sin(p.a)*p.L; }
+}
+function kick(amount){ for(const p of W) p.w += (Math.random()-0.5)*amount*2.4; }
+function align(){ const g=Math.atan2(gy,gx); for(const p of W){ p.a=g; p.w=0; } }
+
+function physics(dt){
+  const gAng=Math.atan2(gy,gx);
+  for(const p of W){
+    if(p.held!==null) continue;
+    let off=p.a-gAng;                          // desvio em relação ao prumo
+    while(off> Math.PI) off-=Math.PI*2;
+    while(off<-Math.PI) off+=Math.PI*2;
+    p.w += -(G/p.L)*Math.sin(off)*dt;
+    p.w *= Math.max(0, 1-1.15*dt);             // amortecimento: assentam sozinhos
+    const before=off;
+    p.a += p.w*dt;
+    let after=p.a-gAng;
+    while(after> Math.PI) after-=Math.PI*2;
+    while(after<-Math.PI) after+=Math.PI*2;
+    if((before>0&&after<=0)||(before<0&&after>=0)) ping(p);   // soa ao cruzar o prumo
+  }
+  place();
+  for(const p of W){
+    const bedY=innerHeight*BEDTOP;
+    if((p.y+p.rad)>bedY-6) carve(p.x,p.y,p.rad*1.15);
+  }
+}
+
+// ================= som =================
+let ac=null, master=null, conv=null, wet=null, soundOn=false;
+const SEMI=[0,3,5,7,10,12,15,17,19,22,24,27,29,31,34];
+function bootAudio(){
+  ac=new (window.AudioContext||window.webkitAudioContext)();
+  master=ac.createGain(); master.gain.value=0.55;
+  const comp=ac.createDynamicsCompressor(); comp.threshold.value=-16; comp.ratio.value=3;
+  conv=ac.createConvolver(); wet=ac.createGain(); wet.gain.value=0.34;
+  const sr=ac.sampleRate, len=Math.floor(sr*2.6), b=ac.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){ const d=b.getChannelData(ch);
+    for(let i=0;i<len;i++){ const t=i/len; d[i]=(Math.random()*2-1)*Math.pow(1-t,2.6); } }
+  conv.buffer=b; conv.connect(wet); wet.connect(comp);
+  comp.connect(master); master.connect(ac.destination);
+  ac.resume();
+}
+function ping(p){
+  if(!soundOn||!ac) return;
+  const vel=Math.min(1, Math.abs(p.w)*0.55);
+  if(vel<0.04) return;
+  const idx=W.indexOf(p), d=Math.abs(idx-3);
+  const f=146.83*Math.pow(2, SEMI[d%SEMI.length]/12);  // fios simétricos, mesma nota
+  const t=ac.currentTime;
+  const o=ac.createOscillator(), o2=ac.createOscillator(), g=ac.createGain();
+  o.type='triangle'; o.frequency.value=f;
+  o2.type='sine'; o2.frequency.value=f*2.006;
+  const g2=ac.createGain(); g2.gain.value=0.3;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vel*0.34, t+0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+0.9+vel*0.7);
+  const pan=ac.createStereoPanner?ac.createStereoPanner():null;
+  if(pan) pan.pan.value=(p.ax/innerWidth-0.5)*1.2;
+  o.connect(g); o2.connect(g2); g2.connect(g);
+  if(pan){ g.connect(pan); pan.connect(master); pan.connect(conv); }
+  else { g.connect(master); g.connect(conv); }
+  o.start(t); o2.start(t); o.stop(t+2); o2.stop(t+2);
+}
+
+// ================= dedo =================
+let tool=0;
+function poke(sx,sy){
+  const cxg=Math.round(sx/innerWidth*CW), cyg=Math.round(sy/innerHeight*CH);
+  const r=Math.max(2, Math.round(Math.min(CW,CH)*0.035));
+  const tone=1+((Math.floor(performance.now()/900)+mat)%TONES.length);
+  for(let dy=-r;dy<=r;dy++){
+    const y=cyg+dy; if(y<0||y>=CH) continue;
+    for(let dx=-r;dx<=r;dx++){
+      const x=cxg+dx; if(x<0||x>=CW) continue;
+      if(dx*dx+dy*dy>r*r) continue;
+      const i=y*CW+x;
+      if(tool===0){ if(!cell[i] && Math.random()<0.75) cell[i]=tone; }
+      else cell[i]=0;
+    }
+  }
+}
+const PT=new Map();
+function grab(id,x,y){
+  let best=null, bd=1e9;
+  for(const p of W){ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){bd=d;best=p;} }
+  if(best && bd < Math.max(44,best.rad*3.2)){ best.held=id; PT.set(id,{p:best,x,y,px:x,py:y}); return true; }
+  PT.set(id,{p:null,x,y,px:x,py:y});
+  poke(x,y);                       // longe dos pesos, o dedo trabalha a areia
+  return false;
+}
+function drag(id,x,y){
+  const e=PT.get(id); if(!e) return;
+  e.px=e.x; e.py=e.y; e.x=x; e.y=y;
+  const p=e.p;
+  if(!p){ poke(x,y); return; }
+  p.a = Math.atan2(y-p.ay, x-p.ax);
+  p.w = 0;
+}
+function release(id){
+  const e=PT.get(id); PT.delete(id);
+  if(!e||!e.p) return;
+  const p=e.p;
+  const tang = -Math.sin(Math.atan2(p.y-p.ay,p.x-p.ax)), tangy=Math.cos(Math.atan2(p.y-p.ay,p.x-p.ax));
+  const vx=(e.x-e.px), vy=(e.y-e.py);
+  p.w = (vx*tang + vy*tangy)/p.L*7;          // largar com impulso
+  p.held=null;
+}
+const nx=e=>({x:e.clientX, y:e.clientY});
+cv.addEventListener('pointerdown',e=>{ const n=nx(e); try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  grab(e.pointerId,n.x,n.y); hide(); });
+cv.addEventListener('pointermove',e=>{ if(!PT.has(e.pointerId)) return; const n=nx(e); drag(e.pointerId,n.x,n.y); });
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,e=>release(e.pointerId)));
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ================= desenho =================
+function view(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  cv.width=Math.round(innerWidth*dpr); cv.height=Math.round(innerHeight*dpr);
+  tr.width=cv.width; tr.height=cv.height;
+  trx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.imageSmoothingEnabled=false;
+}
+function paint(){
+  for(let i=0,p=0;i<CELLS;i++,p+=4){
+    const v=cell[i];
+    if(v){ const t=TONES[v-1]; px[p]=t[0]; px[p+1]=t[1]; px[p+2]=t[2]; }
+    else { px[p]=16; px[p+1]=13; px[p+2]=10; }
+  }
+  octx.putImageData(img,0,0);
+  ctx.drawImage(off,0,0,cv.width,cv.height);
+
+  // rastos: é o desvanecer que faz aparecer a trança
+  trx.globalCompositeOperation='destination-out';
+  trx.fillStyle='rgba(0,0,0,0.055)';
+  trx.fillRect(0,0,innerWidth,innerHeight);
+  trx.globalCompositeOperation='source-over';
+  for(const p of W){
+    const t=p.tone;
+    trx.fillStyle='rgba('+t[0]+','+t[1]+','+t[2]+',.5)';
+    trx.beginPath(); trx.arc(p.x,p.y,p.rad*0.42,0,6.283); trx.fill();
+  }
+  ctx.drawImage(tr,0,0);
+
+  // travessa, fios e pesos
+  const dpr=cv.width/innerWidth;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.strokeStyle='rgba(237,227,210,.22)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,ANCH); ctx.lineTo(innerWidth,ANCH); ctx.stroke();
+  for(const p of W){
+    ctx.strokeStyle='rgba(237,227,210,'+(p.held!==null?.5:.24)+')';
+    ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(p.ax,p.ay); ctx.lineTo(p.x,p.y); ctx.stroke();
+    const t=p.tone, sp=Math.min(1,Math.abs(p.w)*0.5);
+    ctx.fillStyle='rgb('+t[0]+','+t[1]+','+t[2]+')';
+    ctx.shadowBlur=16*sp; ctx.shadowColor='rgba(217,164,65,.9)';
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.rad,0,6.283); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(16,13,10,.55)';
+    ctx.beginPath(); ctx.arc(p.x-p.rad*0.28,p.y-p.rad*0.3,p.rad*0.3,0,6.283); ctx.fill();
+  }
+  // fio de prumo
+  const ox=innerWidth*0.5, oy=ANCH*0.42, L=Math.min(innerWidth,innerHeight)*0.055;
+  ctx.strokeStyle='rgba(237,227,210,.3)';
+  ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ox+gx*L,oy+gy*L); ctx.stroke();
+  ctx.fillStyle='rgba(217,164,65,.9)';
+  ctx.beginPath(); ctx.arc(ox+gx*L,oy+gy*L,2.6,0,6.283); ctx.fill();
+  ctx.setTransform(1,0,0,1,0,0);
+}
+
+// ================= leitura =================
+const rN=document.getElementById('rN'), rSum=document.getElementById('rSum'),
+      rAvg=document.getElementById('rAvg'), rCoh=document.getElementById('rCoh'),
+      rTilt=document.getElementById('rTilt'), rState=document.getElementById('rState'),
+      cohBar=document.getElementById('cohBar');
+function coherence(){
+  const gAng=Math.atan2(gy,gx);
+  let sx=0, sy=0;
+  for(const p of W){
+    const om=Math.sqrt(G/p.L);
+    let off=p.a-gAng;
+    while(off> Math.PI) off-=Math.PI*2;
+    while(off<-Math.PI) off+=Math.PI*2;
+    const ph=Math.atan2(p.w/om, off);
+    sx+=Math.cos(ph); sy+=Math.sin(ph);
+  }
+  return Math.hypot(sx,sy)/W.length;
+}
+let last=performance.now(), acc=0, coh=0;
+let amp=0;
+function hud(){
+  const sum=W.reduce((a,p)=>a+p.mass,0);
+  const gA=Math.atan2(gy,gx);
+  amp=W.reduce((a,p)=>{
+    let o=p.a-gA; while(o>Math.PI)o-=Math.PI*2; while(o<-Math.PI)o+=Math.PI*2;
+    return a+Math.abs(o);
+  },0)/W.length*180/Math.PI;
+  rN.textContent=W.length;
+  rSum.textContent=(sum/1000).toFixed(2)+' kg';
+  rAvg.textContent=Math.round(sum/W.length)+' g · '+amp.toFixed(0)+'°';
+  rCoh.firstChild.textContent=Math.round(coh*100)+'% ';
+  cohBar.style.width=(coh*100)+'%';
+  rTilt.textContent=Math.round(tilt)+'°';
+  rState.textContent = !haveSensor ? 'sem sensor'
+    : amp<1.2 ? 'a prumo' : liq>0.25 ? 'liquefeito' : 'a oscilar';
+}
+function frame(now){
+  let dt=(now-last)/1000; last=now;
+  dt=Math.min(dt,0.05);
+  if(!document.hidden){
+    physics(dt);
+    flow();
+    liq*=0.955;
+    coh=coh*0.85+coherence()*0.15;
+    paint();
+  }
+  acc+=dt; if(acc>0.2){ hud(); acc=0; }
+  requestAnimationFrame(frame);
+}
+
+// ================= controlos =================
+function press(sel,el){ document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed', b===el?'true':'false')); }
+document.querySelectorAll('[data-mat]').forEach(b=>b.onclick=()=>{ mat=+b.dataset.mat; press('[data-mat]',b); hide(); });
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{ tool=+b.dataset.tool; press('[data-tool]',b); hide(); });
+const bSound=document.getElementById('bSound');
+bSound.onclick=()=>{
+  if(!ac) bootAudio();
+  soundOn=!soundOn;
+  bSound.setAttribute('aria-pressed',soundOn);
+  if(soundOn && ac.state==='suspended') ac.resume();
+  hide();
+};
+document.getElementById('bSync').onclick=()=>{ align(); hide(); };
+document.getElementById('bShake').onclick=()=>{ liq=1; kick(0.6); if(navigator.vibrate) navigator.vibrate(18); hide(); };
+document.getElementById('bWipe').onclick=()=>{ seedBed(); hide(); };
+const hint=document.getElementById('hint'); let hidden=false;
+function hide(){ if(hidden) return; hidden=true; setTimeout(()=>hint.classList.add('gone'),2600); }
+
+function build(){ buildBed(); view(); buildPend(); }
+const FS_REBUILD=()=>{ view(); buildPend(); };
+let rz=null, lw=innerWidth, lh=innerHeight;
+addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{
+  const dw=Math.abs(innerWidth-lw), dh=Math.abs(innerHeight-lh);
+  if(dw<2&&dh<140) view(); else build();
+  lw=innerWidth; lh=innerHeight;
+},180); });
+addEventListener('orientationchange',()=>setTimeout(build,320));
+
+build();
+requestAnimationFrame(frame);
+setTimeout(()=>{ if(!haveSensor) document.getElementById('fallback').hidden=false; }, 3000);
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+  if(framed){
+    if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
+    });
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
+    return;
+  }
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){ btn.setAttribute('aria-pressed',on);
+      const lbl=on?'Sair do ecrã inteiro':'Ecrã inteiro'; btn.title=lbl; btn.setAttribute('aria-label',lbl); }
+    links(); view(); buildPend();
+  }
+  if(btn){ if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); }); }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+  if(can && wanted() && !isOn()){
+    req();
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)),20000);
+  }
+  links(); sync();
+})();
+})();
+</script>
+</body>
+</html>
