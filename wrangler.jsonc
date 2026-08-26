@@ -1,0 +1,11 @@
+{
+  // EXC001CLD — Worker apenas de recursos estáticos.
+  // Sem código, sem build: serve os ficheiros da raiz do repositório.
+  "name": "exc001cld",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
