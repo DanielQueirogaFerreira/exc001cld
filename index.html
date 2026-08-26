@@ -39,6 +39,8 @@
     background:rgba(5,3,13,.78);backdrop-filter:blur(10px);
     opacity:.72;transition:opacity .25s}
   .bar:hover,.bar:focus-within{opacity:1}
+  .bar.quiet{opacity:.20}
+  .bar.quiet:hover,.bar.quiet:focus-within{opacity:1}
   .bar button{font:inherit;font-size:9px;letter-spacing:.06em;color:var(--dim);
     background:transparent;border:0;border-radius:999px;padding:5px 7px;cursor:pointer;
     min-width:23px;transition:.18s}
@@ -47,6 +49,9 @@
   .bar button:focus-visible{outline:2px solid var(--live);outline-offset:1px}
   .bar .sep{width:1px;height:14px;background:var(--line);margin:0 2px}
   .bar .fsbtn{width:26px;height:26px;flex:0 0 26px;border:0;margin:0;padding:0}
+  .bar .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .bar #bZen2[aria-pressed="true"]{background:var(--ink);color:var(--void)}
   header h1{font-family:"Syne",sans-serif;font-weight:800;text-transform:uppercase;
     font-size:clamp(34px,9vw,86px);line-height:.86;letter-spacing:-.045em}
   header h1 span{color:var(--live)}
@@ -121,7 +126,7 @@
       </span>
     </a>
 
-    <a class="item" target="_top" data-nav="05-escuta-1.html" data-key="05" href="05-escuta-1.html">
+    <a class="item" target="_top" data-nav="05-escuta-2.html" data-key="05" href="05-escuta-2.html">
       <span class="num">05</span>
       <span>
         <span class="name">Escuta</span>
@@ -149,6 +154,7 @@
       <button data-go="04" title="Prumo">04</button>
       <button data-go="05" title="Escuta">05</button>
       <span class="sep"></span>
+      <button class="fsbtn" id="bZen2" aria-pressed="false" aria-label="Imersão" title="Imersão: esconder números"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button>
       <button class="fsbtn" id="bFs2" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
     </div>
   </div>
@@ -233,12 +239,29 @@
     // ---------- painel: abre cada ambiente dentro do mesmo documento ----------
     // é isto que faz o ecrã inteiro sobreviver à troca: nunca há navegação
     (function(){
-      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-5.html','04':'04-prumo-6.html','05':'05-escuta-1.html'};
+      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-5.html','04':'04-prumo-6.html','05':'05-escuta-2.html'};
       const stage=document.getElementById('stage'), frame=document.getElementById('frame');
       const bar=document.querySelector('.bar');
       let cur=null;
       function mark(k){ bar.querySelectorAll('button[data-go]').forEach(b=>
         b.setAttribute('aria-current', b.dataset.go===k ? 'true':'false')); }
+      let zen=false;
+      function tellZen(){
+        try{ frame.contentWindow.postMessage({exc:'zen',on:zen},'*'); }catch(e){}
+      }
+      frame.addEventListener('load',()=>{ if(zen) setTimeout(tellZen,60); });
+      const bZen2=document.getElementById('bZen2');
+      const EYE_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11.05 6.03 11.5 6 12 6c6.4 0 10 6 10 6s-1.2 2-3.3 3.7M6.4 8.3C3.9 9.9 2 12 2 12s3.6 6.5 10 6.5c1.3 0 2.5-.2 3.5-.6"/></svg>';
+      const EYE_ON=bZen2.innerHTML;
+      bZen2.addEventListener('click',()=>{
+        zen=!zen;
+        bZen2.setAttribute('aria-pressed',zen);
+        bZen2.innerHTML = zen?EYE_OFF:EYE_ON;
+        const lbl = zen?'Sair da imersão':'Imersão: esconder números';
+        bZen2.title=lbl; bZen2.setAttribute('aria-label',lbl);
+        bar.classList.toggle('quiet', zen);
+        tellZen();
+      });
       function open(k){
         const f=MAP[k]; if(!f) return;
         if(cur!==k){ frame.src=f; cur=k; }
