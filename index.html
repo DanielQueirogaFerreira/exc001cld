@@ -39,9 +39,9 @@
     background:rgba(5,3,13,.78);backdrop-filter:blur(10px);
     opacity:.72;transition:opacity .25s}
   .bar:hover,.bar:focus-within{opacity:1}
-  .bar button{font:inherit;font-size:9px;letter-spacing:.1em;color:var(--dim);
-    background:transparent;border:0;border-radius:999px;padding:5px 9px;cursor:pointer;
-    min-width:26px;transition:.18s}
+  .bar button{font:inherit;font-size:9px;letter-spacing:.06em;color:var(--dim);
+    background:transparent;border:0;border-radius:999px;padding:5px 7px;cursor:pointer;
+    min-width:23px;transition:.18s}
   .bar button:hover{color:var(--ink);background:rgba(160,150,220,.14)}
   .bar button[aria-current="true"]{color:var(--void);background:var(--ink)}
   .bar button:focus-visible{outline:2px solid var(--live);outline-offset:1px}
@@ -74,7 +74,7 @@
     </div>
     <p>Três peças autónomas. Nenhuma usa biblioteca externa, servidor ou base de dados:
       cada uma é <b>um único ficheiro HTML</b> que corre inteiro dentro do seu navegador.
-      Funcionam com toque, teclado e rato.</p>
+      Funcionam com toque, teclado, rato e sensores do aparelho.</p>
   </header>
 
   <nav>
@@ -109,19 +109,33 @@
         <span class="tags">WebGL · gramática generativa · semente partilhável</span>
       </span>
     </a>
+
+    <a class="item" target="_top" data-nav="04-prumo-1.html" data-key="04" href="04-prumo-1.html">
+      <span class="num">04</span>
+      <span>
+        <span class="name">Prumo</span>
+        <span class="desc">O ecrã deixa de ser janela e passa a ser frasco. A gravidade da peça é a
+          gravidade real do sítio onde está: incline e a matéria escorre até ao ângulo de repouso,
+          sacuda e ela liquefaz. O fio de prumo aponta sempre para o centro da Terra.</span>
+        <span class="tags">Acelerómetro · autómato granular · sem botões</span>
+      </span>
+    </a>
   </nav>
 
   <footer>EXC001CLD · ambiente de teste · três ficheiros, zero dependências</footer>
 
 
   <div id="stage" hidden>
-    <iframe id="frame" title="Ambiente EXC" allow="fullscreen" allowfullscreen></iframe>
+    <iframe id="frame" title="Ambiente EXC"
+      allow="fullscreen; gyroscope; accelerometer; magnetometer; microphone; autoplay"
+      allowfullscreen></iframe>
     <div class="bar" role="group" aria-label="Navegação entre ambientes">
       <button data-go="home" title="Voltar ao índice" aria-label="Voltar ao índice">←</button>
       <span class="sep"></span>
       <button data-go="01" title="Protoplasma">01</button>
       <button data-go="02" title="Cordame">02</button>
       <button data-go="03" title="Semente">03</button>
+      <button data-go="04" title="Prumo">04</button>
       <span class="sep"></span>
       <button class="fsbtn" id="bFs2" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
     </div>
@@ -207,7 +221,7 @@
     // ---------- painel: abre cada ambiente dentro do mesmo documento ----------
     // é isto que faz o ecrã inteiro sobreviver à troca: nunca há navegação
     (function(){
-      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-5.html'};
+      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-5.html','04':'04-prumo-1.html'};
       const stage=document.getElementById('stage'), frame=document.getElementById('frame');
       const bar=document.querySelector('.bar');
       let cur=null;
