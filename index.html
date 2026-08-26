@@ -120,6 +120,17 @@
         <span class="tags">Acelerómetro · pêndulo amortecido · autómato granular</span>
       </span>
     </a>
+
+    <a class="item" target="_top" data-nav="05-escuta-1.html" data-key="05" href="05-escuta-1.html">
+      <span class="num">05</span>
+      <span>
+        <span class="name">Escuta</span>
+        <span class="desc">Uma membrana esticada sobre o ecrã, que o som da sua sala faz vibrar.
+          Graves batem ao centro, agudos na borda; as ondas cruzam-se e interferem, e o silêncio
+          deixa a pele cicatrizar. O áudio é analisado no aparelho e nunca sai dele.</span>
+        <span class="tags">Microfone · equação de onda · FFT em anel</span>
+      </span>
+    </a>
   </nav>
 
   <footer>EXC001CLD · ambiente de teste · três ficheiros, zero dependências</footer>
@@ -136,6 +147,7 @@
       <button data-go="02" title="Cordame">02</button>
       <button data-go="03" title="Semente">03</button>
       <button data-go="04" title="Prumo">04</button>
+      <button data-go="05" title="Escuta">05</button>
       <span class="sep"></span>
       <button class="fsbtn" id="bFs2" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
     </div>
@@ -221,7 +233,7 @@
     // ---------- painel: abre cada ambiente dentro do mesmo documento ----------
     // é isto que faz o ecrã inteiro sobreviver à troca: nunca há navegação
     (function(){
-      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-5.html','04':'04-prumo-6.html'};
+      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-5.html','04':'04-prumo-6.html','05':'05-escuta-1.html'};
       const stage=document.getElementById('stage'), frame=document.getElementById('frame');
       const bar=document.querySelector('.bar');
       let cur=null;
