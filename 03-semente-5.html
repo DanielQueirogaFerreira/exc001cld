@@ -24,9 +24,10 @@
   .fade{position:fixed;inset:0;z-index:1;pointer-events:none;
     background:linear-gradient(180deg,rgba(10,11,20,.72) 0%,rgba(10,11,20,.25) 35%,rgba(10,11,20,.55) 72%,rgba(10,11,20,.95) 100%)}
 
-  .page{position:relative;z-index:2;min-height:100vh;min-height:100dvh;
-    display:grid;grid-template-rows:auto 1fr auto;
-    padding:clamp(16px,3vw,38px);gap:clamp(16px,3vh,40px)}
+  .page{position:relative;z-index:2;height:100vh;height:100dvh;
+    display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+    padding:clamp(14px,3vw,38px);gap:clamp(12px,2.4vh,34px);
+    padding-bottom:calc(clamp(14px,3vw,38px) + env(safe-area-inset-bottom,0px))}
 
   header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;
     border-bottom:1px solid var(--line);padding-bottom:12px}
@@ -37,7 +38,7 @@
     letter-spacing:.04em}
   .seedrow{display:flex;align-items:center;justify-content:flex-end;gap:12px}
   .seedrow b{min-width:9ch;text-align:right}
-  .roll{width:40px;height:40px;flex:0 0 40px;padding:0;font-size:16px;line-height:1;
+  .roll{width:30px;height:30px;flex:0 0 30px;padding:0;font-size:13px;line-height:1;
     border:1px solid var(--papel);border-radius:50%;color:var(--papel);background:transparent;
     display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s}
   .roll:hover{background:var(--papel);color:var(--tinta)}
@@ -47,7 +48,9 @@
   .churn{color:#9BE7FF}
 
   main{display:flex;flex-direction:column;justify-content:center;
-    max-width:min(760px,92vw);margin:0 auto;width:100%}
+    max-width:min(760px,92vw);margin:0 auto;width:100%;
+    min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
   .kicker{font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--dim);margin-bottom:1.4em}
   h1{font-family:"Fraunces",Georgia,serif;font-weight:600;
     font-size:clamp(32px,6.4vw,68px);line-height:1.02;letter-spacing:-.02em;
@@ -60,14 +63,21 @@
   .rise{opacity:0;transform:translateY(14px);animation:rise .9s cubic-bezier(.2,.7,.3,1) forwards}
   @keyframes rise{to{opacity:1;transform:none}}
 
-  footer{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
-    border-top:1px solid var(--line);padding-top:14px}
-  button,a.btn{font:inherit;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  footer{display:flex;gap:7px;flex-wrap:wrap;align-items:center;
+    border-top:1px solid var(--line);padding-top:11px;flex-shrink:0}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
     display:inline-block;text-decoration:none;line-height:normal;
     background:transparent;color:var(--papel);border:1px solid var(--line);
-    padding:11px 17px;cursor:pointer;transition:.2s;border-radius:1px}
+    padding:7px 11px;cursor:pointer;transition:.2s;border-radius:1px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px;border-radius:1px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+
   button:hover,a.btn:hover{background:var(--papel);color:var(--tinta)}
-  a.btn{color:var(--papel);border:1px solid var(--line);padding:11px 17px;border-radius:1px}
+  a.btn{color:var(--papel);border:1px solid var(--line);padding:7px 11px;border-radius:1px}
   a.btn:focus-visible{outline:2px solid #9BE7FF;outline-offset:2px}
   button:focus-visible{outline:2px solid #9BE7FF;outline-offset:2px}
   .primary{border-color:var(--papel)}
@@ -100,11 +110,11 @@
   </main>
 
   <footer>
-    <a class="btn" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
     <button id="bAuto" aria-pressed="false">Sequência</button>
     <button id="bLink">Copiar ligação</button>
     <button id="bText">Copiar poema</button>
-    <button id="bFs" aria-pressed="false">Ecrã inteiro</button>
+    <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
     <p class="legend">O céu não é um vídeo: é uma equação a correr na sua placa gráfica.
       As mesmas cinco variáveis que lhe dão a cor escolhem também os substantivos.</p>
   </footer>
@@ -396,26 +406,51 @@ document.getElementById('bLink').onclick=e=>{
   else copy('semente '+seed, e.currentTarget, 'Semente '+seed+' copiada');
 };
 document.getElementById('bText').onclick=e=>copy(plainText(),e.currentTarget,'Copiado');
-// ---------- ecrã inteiro ----------
-const bFs=document.getElementById('bFs');
-const root=document.documentElement;
-const canFs=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
-const fsOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
-function fsSync(){
-  const on=!!fsOn();
-  bFs.textContent = on ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
-  bFs.setAttribute('aria-pressed', on);
-  resize();
-}
-if(!canFs) bFs.style.display='none';
-bFs.onclick=()=>{
-  if(!canFs) return;
-  if(!fsOn()){ (root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen).call(root); }
-  else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
-};
-document.addEventListener('fullscreenchange',fsSync);
-document.addEventListener('webkitfullscreenchange',fsSync);
-addEventListener('keydown',e=>{ if(e.key==='f'||e.key==='F') bFs.click(); });
+const FS_REBUILD=()=>resize();
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+
+  // os links internos levam o estado consigo
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){
+      btn.setAttribute('aria-pressed', on);
+      const lbl = on ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
+      btn.title=lbl; btn.setAttribute('aria-label',lbl);
+    }
+    links();
+    if(typeof FS_REBUILD==='function') FS_REBUILD();
+  }
+  if(btn){
+    if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); });
+  }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+
+  // chegou já com pedido: tenta entrar, e se o navegador exigir gesto, entra ao primeiro toque
+  if(can && wanted() && !isOn()){
+    req();
+    const once=()=>{ if(!isOn()) req(); removeEventListener('pointerdown',once,true); removeEventListener('keydown',once,true); };
+    addEventListener('pointerdown',once,true); addEventListener('keydown',once,true);
+  }
+  links(); sync();
+})();
 
 addEventListener('resize',resize);
 addEventListener('hashchange',()=>{ const h=parseInt(location.hash.slice(1),10);

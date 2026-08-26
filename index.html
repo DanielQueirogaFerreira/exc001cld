@@ -15,6 +15,17 @@
   body{background:var(--void);color:var(--ink);min-height:100vh;
     font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;-webkit-font-smoothing:antialiased;
     padding:clamp(20px,5vw,64px);display:flex;flex-direction:column;gap:clamp(28px,5vh,60px)}
+  .hrow{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+  .fsbtn{width:30px;height:30px;flex:0 0 30px;padding:0;display:grid;place-items:center;
+    background:transparent;border:1px solid var(--line);border-radius:50%;color:var(--dim);
+    cursor:pointer;transition:.2s;margin-top:6px}
+  .fsbtn:hover{color:var(--ink);border-color:var(--ink)}
+  .fsbtn:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+  .fsbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
   header h1{font-family:"Syne",sans-serif;font-weight:800;text-transform:uppercase;
     font-size:clamp(34px,9vw,86px);line-height:.86;letter-spacing:-.045em}
   header p{color:var(--dim);font-size:12px;line-height:1.9;max-width:46ch;margin-top:1.6em}
@@ -35,14 +46,17 @@
 </head>
 <body>
   <header>
-    <h1>EXC<br>space</h1>
+    <div class="hrow">
+      <h1>EXC<br>space</h1>
+      <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    </div>
     <p>Três peças autónomas. Nenhuma usa biblioteca externa, servidor ou base de dados:
       cada uma é <b>um único ficheiro HTML</b> que corre inteiro dentro do seu navegador.
       Funcionam com toque, teclado e rato.</p>
   </header>
 
   <nav>
-    <a class="item" target="_top" href="01-protoplasma-4.html">
+    <a class="item" target="_top" data-nav="01-protoplasma-4.html" href="01-protoplasma-4.html">
       <span class="num">01</span>
       <span>
         <span class="name">Protoplasma</span>
@@ -53,7 +67,7 @@
       </span>
     </a>
 
-    <a class="item" target="_top" href="02-cordame-2.html">
+    <a class="item" target="_top" data-nav="02-cordame-2.html" href="02-cordame-2.html">
       <span class="num">02</span>
       <span>
         <span class="name">Cordame</span>
@@ -64,7 +78,7 @@
       </span>
     </a>
 
-    <a class="item" target="_top" href="03-semente-5.html">
+    <a class="item" target="_top" data-nav="03-semente-5.html" href="03-semente-5.html">
       <span class="num">03</span>
       <span>
         <span class="name">Semente</span>
@@ -91,6 +105,51 @@
         a.style.opacity='.55';
       });
     }
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+
+  // os links internos levam o estado consigo
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){
+      btn.setAttribute('aria-pressed', on);
+      const lbl = on ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
+      btn.title=lbl; btn.setAttribute('aria-label',lbl);
+    }
+    links();
+    if(typeof FS_REBUILD==='function') FS_REBUILD();
+  }
+  if(btn){
+    if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); });
+  }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+
+  // chegou já com pedido: tenta entrar, e se o navegador exigir gesto, entra ao primeiro toque
+  if(can && wanted() && !isOn()){
+    req();
+    const once=()=>{ if(!isOn()) req(); removeEventListener('pointerdown',once,true); removeEventListener('keydown',once,true); };
+    addEventListener('pointerdown',once,true); addEventListener('keydown',once,true);
+  }
+  links(); sync();
+})();
+
   </script>
 </body>
 </html>
