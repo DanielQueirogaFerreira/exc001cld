@@ -379,13 +379,18 @@ const FS_REBUILD=()=>buildStrings();
   const btn=document.getElementById('bFs');
   const framed = window.self!==window.top;
 
-  // dentro do painel EXC: a barra de cima trata de voltar e do ecrã inteiro,
+  // dentro do painel EXC: a barra de baixo trata de voltar e do ecrã inteiro,
   // e o modo nunca cai porque o documento de cima nunca é recarregado
   if(framed){
     if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
     document.querySelectorAll('a[data-nav]').forEach(a=>{
       const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
     });
+    // reserva o canto do polegar para a barra do painel
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
     return;
   }
 
@@ -419,7 +424,6 @@ const FS_REBUILD=()=>buildStrings();
   document.addEventListener('fullscreenchange',sync);
   document.addEventListener('webkitfullscreenchange',sync);
 
-  // aberto em separador próprio já com pedido: entra ao primeiro gesto válido
   if(can && wanted() && !isOn()){
     req();
     const evs=['click','pointerup','touchend','keydown'];
