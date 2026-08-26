@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PRUMO — o aparelho como objeto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --breu:#100D0A;      /* terra queimada */
+    --osso:#EDE3D2;
+    --dim:#8C7F6C;
+    --line:rgba(237,227,210,.2);
+    --ocre:#D9A441;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--breu);color:var(--osso);overflow:hidden}
+  body{font-family:"IBM Plex Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  .shell{position:fixed;inset:0;pointer-events:none;display:grid;
+    grid-template-rows:auto 1fr auto;padding:clamp(14px,2.4vw,30px)}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+  h1{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;
+    font-size:clamp(30px,7vw,78px);line-height:.85;letter-spacing:-.04em;text-transform:uppercase}
+  h1 em{display:block;font-style:normal;font-weight:500;font-family:"IBM Plex Mono",monospace;
+    font-size:clamp(9px,1.5vw,12px);letter-spacing:.36em;color:var(--dim);margin-top:1em}
+  .cartel{max-width:30ch;text-align:right;font-size:11px;line-height:1.75;color:var(--dim);font-weight:300}
+  .cartel b{color:var(--osso);font-weight:500}
+
+  .readout{align-self:end;display:flex;gap:clamp(14px,3vw,34px);flex-wrap:wrap;
+    border-top:1px solid var(--line);padding-top:9px;margin-bottom:13px;font-size:11px}
+  .cell span{display:block;color:var(--dim);font-size:9px;letter-spacing:.24em;margin-bottom:3px}
+  .cell b{font-weight:500;font-variant-numeric:tabular-nums;font-size:14px}
+
+  .deck{display:flex;gap:7px;flex-wrap:wrap;align-items:center;pointer-events:auto}
+  .group{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;
+    background:rgba(16,13,10,.72);backdrop-filter:blur(8px)}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    display:inline-block;text-decoration:none;line-height:normal;
+    background:transparent;color:var(--dim);border:0;border-right:1px solid var(--line);
+    padding:6px 9px;cursor:pointer;transition:.18s}
+  .group button:last-child{border-right:0}
+  button:hover,a.btn:hover{color:var(--osso);background:rgba(217,164,65,.16)}
+  button[aria-pressed="true"]{background:var(--ocre);color:var(--breu)}
+  button:focus-visible,a.btn:focus-visible{outline:2px solid var(--ocre);outline-offset:-2px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+  .hint{font-size:10px;color:var(--dim);letter-spacing:.08em;margin-left:auto;
+    text-align:right;transition:opacity .8s}
+  .hint.gone{opacity:0}
+
+  /* pedido de sensores (iOS exige gesto explícito) */
+  .ask{position:fixed;inset:0;display:grid;place-items:center;z-index:5;pointer-events:auto;
+    background:radial-gradient(60% 60% at 50% 50%,rgba(16,13,10,.86),rgba(16,13,10,.97));
+    transition:opacity .5s}
+  .ask.off{opacity:0;pointer-events:none}
+  .ask button{border:1px solid var(--ocre);color:var(--osso);padding:16px 30px;font-size:10px;
+    letter-spacing:.28em;background:transparent}
+  .ask p{margin-top:16px;font-size:11px;color:var(--dim);line-height:2;text-align:center;max-width:34ch}
+  @media (max-width:640px){ .cartel{display:none} }
+  @media (pointer:coarse){ button,a.btn{padding:8px 10px;font-size:9.5px} }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Matéria granular que escorre conforme a inclinação do aparelho"></canvas>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1>Prumo<em>matéria granular · ângulo de repouso</em></h1>
+    </div>
+    <p class="cartel">Aqui o ecrã não é uma janela: é um <b>frasco</b>. A gravidade da peça é a
+      gravidade real do sítio onde você está. Incline e a matéria escorre até ao seu ângulo de
+      repouso; <b>sacuda e ela liquefaz</b>, como areia molhada num sismo.</p>
+  </header>
+
+  <div class="readout">
+    <div class="cell"><span>GRÃOS</span><b id="rN">—</b></div>
+    <div class="cell"><span>INCLINAÇÃO</span><b id="rTilt">—</b></div>
+    <div class="cell"><span>QUADROS/S</span><b id="rFps">—</b></div>
+    <div class="cell"><span>ESTADO</span><b id="rState">assente</b></div>
+  </div>
+
+  <div class="deck">
+    <div class="group">
+      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    </div>
+    <div class="group" role="group" aria-label="Matéria">
+      <button data-mat="0">Pó</button>
+      <button data-mat="1" aria-pressed="true">Areia</button>
+      <button data-mat="2">Cascalho</button>
+    </div>
+    <div class="group" role="group" aria-label="Dedo">
+      <button data-tool="0" aria-pressed="true">Despejar</button>
+      <button data-tool="1">Escavar</button>
+    </div>
+    <div class="group">
+      <button id="bShake">Sacudir</button>
+      <button id="bWipe">Esvaziar</button>
+      <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    </div>
+    <p class="hint" id="hint">incline o aparelho · toque despeja · sacuda para liquefazer</p>
+  </div>
+</div>
+
+<div class="ask" id="ask" hidden>
+  <div style="text-align:center">
+    <button id="bAsk">ATIVAR SENSORES</button>
+    <p>o navegador só entrega a inclinação depois da sua autorização<br>nada é gravado nem enviado</p>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'), ctx=cv.getContext('2d',{alpha:false});
+const off=document.createElement('canvas'), octx=off.getContext('2d',{alpha:false});
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------- estratos ----------
+const TONES=[[233,220,196],[217,164,65],[180,85,45],[122,96,74],[110,124,140],[74,58,48]];
+const MAT=[
+  {name:'Pó',       slip:1.00, drift:0.30},   // quase líquido, talude raso
+  {name:'Areia',    slip:0.82, drift:0.10},
+  {name:'Cascalho', slip:0.42, drift:0.02}    // empilha em taludes íngremes
+];
+let mat=1, tool=0;
+
+let CW=0,CH=0,CELLS=0, cell=null, img=null, px=null;
+let grains=0, liq=0, fps=60;
+
+function build(){
+  const vw=Math.max(320,innerWidth), vh=Math.max(320,innerHeight);
+  const s=Math.max(2.6, Math.min(4.4, vw/150));      // lado do grão em pixéis
+  CW=Math.max(90, Math.round(vw/s));
+  CH=Math.max(120, Math.round(vh/s));
+  CELLS=CW*CH;
+  off.width=CW; off.height=CH;
+  img=octx.createImageData(CW,CH); px=img.data;
+  for(let i=3;i<px.length;i+=4) px[i]=255;
+  cell=new Uint8Array(CELLS);
+  seed();
+  view();
+}
+function view(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  cv.width=Math.round(innerWidth*dpr); cv.height=Math.round(innerHeight*dpr);
+  ctx.imageSmoothingEnabled=false;
+}
+function seed(){
+  cell.fill(0);
+  const base=Math.floor(CH*0.52);
+  for(let y=base;y<CH;y++){
+    const band=1+Math.floor((y-base)/((CH-base)/TONES.length));
+    for(let x=0;x<CW;x++){
+      const wob=Math.sin(x*0.07)*1.6+Math.sin(x*0.021)*3;
+      cell[y*CW+x] = (y+wob>base) ? Math.min(TONES.length, band) : 0;
+    }
+  }
+  count();
+}
+function count(){ let n=0; for(let i=0;i<CELLS;i++) if(cell[i]) n++; grains=n; }
+
+// ---------- gravidade real ----------
+let gx=0, gy=1, tilt=0, haveSensor=false, lastMag=9.81;
+function setG(ax,ay){
+  const m=Math.hypot(ax,ay)||1;
+  gx=gx*0.82+(ax/m)*0.18;
+  gy=gy*0.82+(ay/m)*0.18;
+  const n=Math.hypot(gx,gy)||1; gx/=n; gy/=n;
+  tilt=Math.atan2(gx,gy)*180/Math.PI;
+}
+function onMotion(e){
+  const a=e.accelerationIncludingGravity;
+  if(!a||a.x===null) return;
+  haveSensor=true;
+  // eixo do ecrã: x acompanha o aparelho, y está invertido
+  setG(-a.x, a.y);
+  const mag=Math.hypot(a.x,a.y,a.z||0);
+  const jerk=Math.abs(mag-lastMag); lastMag=mag;
+  if(jerk>4.5) liq=Math.min(1, liq+jerk*0.06);       // sacudidela liquefaz
+}
+function onOrient(e){
+  if(haveSensor||e.beta===null) return;
+  setG(Math.sin(e.gamma*Math.PI/180), Math.sin(e.beta*Math.PI/180));
+}
+function listen(){
+  addEventListener('devicemotion',onMotion);
+  addEventListener('deviceorientation',onOrient);
+}
+const needsAsk = typeof DeviceMotionEvent!=='undefined' &&
+                 typeof DeviceMotionEvent.requestPermission==='function';
+if(needsAsk){
+  const ask=document.getElementById('ask'); ask.hidden=false;
+  document.getElementById('bAsk').onclick=async()=>{
+    try{ await DeviceMotionEvent.requestPermission();
+      if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
+        await DeviceOrientationEvent.requestPermission();
+    }catch(e){}
+    listen(); ask.classList.add('off');
+  };
+} else listen();
+
+// teclado, para quem está ao computador
+let kx=0,ky=1;
+addEventListener('keydown',e=>{
+  const k=e.key;
+  if(k==='ArrowLeft'){ kx=-0.7; ky=0.7; }
+  else if(k==='ArrowRight'){ kx=0.7; ky=0.7; }
+  else if(k==='ArrowUp'){ kx=0; ky=-1; }
+  else if(k==='ArrowDown'){ kx=0; ky=1; }
+  else if(k===' '){ e.preventDefault(); liq=1; }
+  else return;
+  if(!haveSensor) setG(kx,ky);
+});
+
+// ---------- escoamento ----------
+const DIRS=[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+function move(i,x,y,d){
+  const nx=x+d[0], ny=y+d[1];
+  if(nx<0||nx>=CW||ny<0||ny>=CH) return false;
+  const j=ny*CW+nx;
+  if(cell[j]) return false;
+  cell[j]=cell[i]; cell[i]=0; return true;
+}
+function flow(){
+  const m=MAT[mat];
+  const slip=Math.min(1, m.slip + liq*0.6);
+  const drift=m.drift + liq*0.5;
+  let k=Math.round(Math.atan2(gy,gx)/(Math.PI/4)); k=((k%8)+8)%8;
+  const P=DIRS[k], A=DIRS[(k+1)%8], B=DIRS[(k+7)%8];
+  // varre a favor da gravidade, senão um grão desceria várias casas no mesmo passo
+  const xs=P[0]>0?CW-1:0, xe=P[0]>0?-1:CW, xd=P[0]>0?-1:1;
+  const ys=P[1]>0?CH-1:0, ye=P[1]>0?-1:CH, yd=P[1]>0?-1:1;
+  for(let y=ys;y!==ye;y+=yd){
+    for(let x=xs;x!==xe;x+=xd){
+      const i=y*CW+x;
+      if(!cell[i]) continue;
+      if(move(i,x,y,P)) continue;
+      if(Math.random()<slip){
+        const first=Math.random()<0.5?A:B, second=first===A?B:A;
+        if(move(i,x,y,first)) continue;
+        if(move(i,x,y,second)) continue;
+      }
+      if(drift>0.02 && Math.random()<drift*0.35){        // liquefação: agitação lateral
+        const s=Math.random()<0.5?A:B;
+        move(i,x,y,[s[0],s[1]]);
+      }
+    }
+  }
+}
+
+// ---------- dedo ----------
+const PT=new Map();
+function poke(nx,ny){
+  const cx=Math.round(nx*CW), cy=Math.round(ny*CH);
+  const r=Math.max(2, Math.round(Math.min(CW,CH)*0.035));
+  const tone=1+((Math.floor(performance.now()/900)+mat)%TONES.length);
+  for(let dy=-r;dy<=r;dy++){
+    const y=cy+dy; if(y<0||y>=CH) continue;
+    for(let dx=-r;dx<=r;dx++){
+      const x=cx+dx; if(x<0||x>=CW) continue;
+      if(dx*dx+dy*dy>r*r) continue;
+      const i=y*CW+x;
+      if(tool===0){ if(!cell[i] && Math.random()<0.75) cell[i]=tone; }
+      else cell[i]=0;
+    }
+  }
+}
+const norm=e=>({x:e.clientX/innerWidth, y:e.clientY/innerHeight});
+cv.addEventListener('pointerdown',e=>{ const n=norm(e); PT.set(e.pointerId,n);
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  poke(n.x,n.y); hide(); });
+cv.addEventListener('pointermove',e=>{ if(!PT.has(e.pointerId)) return;
+  const n=norm(e); PT.set(e.pointerId,n); poke(n.x,n.y); });
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,e=>PT.delete(e.pointerId)));
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ---------- desenho ----------
+function paint(){
+  for(let i=0,p=0;i<CELLS;i++,p+=4){
+    const v=cell[i];
+    if(v){ const t=TONES[v-1];
+      px[p]=t[0]; px[p+1]=t[1]; px[p+2]=t[2];
+    } else { px[p]=16; px[p+1]=13; px[p+2]=10; }
+  }
+  octx.putImageData(img,0,0);
+  ctx.drawImage(off,0,0,cv.width,cv.height);
+
+  // fio de prumo: aponta sempre para o centro da Terra
+  const dpr=cv.width/innerWidth;
+  const ox=cv.width*0.5, oy=cv.height*0.055, L=Math.min(cv.width,cv.height)*0.13;
+  ctx.strokeStyle='rgba(237,227,210,.30)'; ctx.lineWidth=1*dpr;
+  ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ox+gx*L, oy+gy*L); ctx.stroke();
+  ctx.fillStyle='rgba(217,164,65,.85)';
+  ctx.beginPath(); ctx.arc(ox+gx*L, oy+gy*L, 3.4*dpr, 0, 6.283); ctx.fill();
+}
+
+// ---------- ciclo ----------
+const rN=document.getElementById('rN'), rTilt=document.getElementById('rTilt'),
+      rFps=document.getElementById('rFps'), rState=document.getElementById('rState');
+let last=performance.now(), acc=0, tick=0;
+function frame(now){
+  const dt=now-last; last=now;
+  fps=fps*0.9+(1000/Math.max(dt,1))*0.1;
+  if(!document.hidden){
+    flow(); if(!reduce) flow();       // dois passos: escoa com nervo
+    liq*=0.955;
+    paint();
+  }
+  if(++tick%18===0) count();
+  acc+=dt; if(acc>200){
+    rN.textContent=grains.toLocaleString('pt-PT');
+    rTilt.textContent=Math.round(tilt)+'°';
+    rFps.textContent=fps.toFixed(0);
+    rState.textContent = liq>0.25 ? 'liquefeito' : (Math.abs(tilt)>12 ? 'a escorrer' : 'assente');
+    acc=0;
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- controlos ----------
+function press(sel,el){ document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed', b===el?'true':'false')); }
+document.querySelectorAll('[data-mat]').forEach(b=>b.onclick=()=>{ mat=+b.dataset.mat; press('[data-mat]',b); hide(); });
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{ tool=+b.dataset.tool; press('[data-tool]',b); hide(); });
+document.getElementById('bShake').onclick=()=>{ liq=1; if(navigator.vibrate) navigator.vibrate(18); hide(); };
+document.getElementById('bWipe').onclick=()=>{ seed(); hide(); };
+const hint=document.getElementById('hint'); let hidden=false;
+function hide(){ if(hidden) return; hidden=true; setTimeout(()=>hint.classList.add('gone'),2400); }
+
+const FS_REBUILD=()=>{ view(); };
+let rz=null, lw=innerWidth, lh=innerHeight;
+addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{
+  const dw=Math.abs(innerWidth-lw), dh=Math.abs(innerHeight-lh);
+  if(dw<2 && dh<140) view(); else build();
+  lw=innerWidth; lh=innerHeight;
+},180); });
+addEventListener('orientationchange',()=>setTimeout(build,320));
+
+build();
+requestAnimationFrame(frame);
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+
+  if(framed){
+    if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
+    });
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
+    return;
+  }
+
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){
+      btn.setAttribute('aria-pressed', on);
+      const lbl = on ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
+      btn.title=lbl; btn.setAttribute('aria-label',lbl);
+    }
+    links(); view();
+  }
+  if(btn){
+    if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); });
+  }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+  if(can && wanted() && !isOn()){
+    req();
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)), 20000);
+  }
+  links(); sync();
+})();
+})();
+</script>
+</body>
+</html>
