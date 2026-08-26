@@ -63,6 +63,7 @@
     background:radial-gradient(60% 60% at 50% 50%,rgba(16,13,10,.86),rgba(16,13,10,.97));
     transition:opacity .5s}
   .ask.off{opacity:0;pointer-events:none}
+  .ask[hidden]{display:none}
   .ask button{border:1px solid var(--ocre);color:var(--osso);padding:16px 30px;font-size:10px;
     letter-spacing:.28em;background:transparent}
   .ask p{margin-top:16px;font-size:11px;color:var(--dim);line-height:2;text-align:center;max-width:34ch}
@@ -108,7 +109,8 @@
       <button id="bWipe">Esvaziar</button>
       <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
     </div>
-    <p class="hint" id="hint">incline o aparelho · toque despeja · sacuda para liquefazer</p>
+    <p class="hint" id="hint">incline o aparelho · toque despeja · sacuda para liquefazer<br>
+      <span id="fallback" hidden>sem sensor: use as setas do teclado, espaço sacode</span></p>
   </div>
 </div>
 
@@ -197,18 +199,21 @@ function listen(){
   addEventListener('devicemotion',onMotion);
   addEventListener('deviceorientation',onOrient);
 }
+const ask=document.getElementById('ask');
 const needsAsk = typeof DeviceMotionEvent!=='undefined' &&
                  typeof DeviceMotionEvent.requestPermission==='function';
-if(needsAsk){
-  const ask=document.getElementById('ask'); ask.hidden=false;
-  document.getElementById('bAsk').onclick=async()=>{
-    try{ await DeviceMotionEvent.requestPermission();
-      if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
-        await DeviceOrientationEvent.requestPermission();
-    }catch(e){}
-    listen(); ask.classList.add('off');
-  };
-} else listen();
+document.getElementById('bAsk').onclick=async()=>{
+  if(needsAsk){
+    try{ await DeviceMotionEvent.requestPermission(); }catch(e){}
+    try{ if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)
+      await DeviceOrientationEvent.requestPermission(); }catch(e){}
+  }
+  listen();
+  ask.classList.add('off');
+  setTimeout(()=>{ ask.hidden=true; }, 600);
+};
+if(needsAsk){ ask.hidden=false; }        // só o iOS obriga a pedir
+else { ask.hidden=true; listen(); }      // Android e computador entram diretos
 
 // teclado, para quem está ao computador
 let kx=0,ky=1;
@@ -322,7 +327,9 @@ function frame(now){
     rN.textContent=grains.toLocaleString('pt-PT');
     rTilt.textContent=Math.round(tilt)+'°';
     rFps.textContent=fps.toFixed(0);
-    rState.textContent = liq>0.25 ? 'liquefeito' : (Math.abs(tilt)>12 ? 'a escorrer' : 'assente');
+    rState.textContent = !haveSensor ? 'sem sensor'
+      : liq>0.25 ? 'liquefeito'
+      : (Math.abs(tilt)>12 ? 'a escorrer' : 'assente');
     acc=0;
   }
   requestAnimationFrame(frame);
@@ -348,6 +355,8 @@ addEventListener('orientationchange',()=>setTimeout(build,320));
 
 build();
 requestAnimationFrame(frame);
+// se em três segundos nenhum sensor falou, avisa e oferece o teclado
+setTimeout(()=>{ if(!haveSensor) document.getElementById('fallback').hidden=false; }, 3000);
 
 // ---------- ecrã inteiro, persistente entre páginas ----------
 (function(){
