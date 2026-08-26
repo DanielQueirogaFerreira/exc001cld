@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CORDAME — um instrumento que não existe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --pece:#08191A;      /* piche esverdeado */
+    --pece2:#04100F;
+    --latao:#C9A24A;     /* latão */
+    --luz:#F0E7D2;       /* marfim */
+    --verdete:#4FBFA8;   /* verdete */
+    --dim:rgba(240,231,210,.44);
+    --line:rgba(201,162,74,.24);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--pece2);color:var(--luz)}
+  body{font-family:"IBM Plex Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;touch-action:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+
+  .shell{position:fixed;inset:0;pointer-events:none;display:grid;
+    grid-template-rows:auto 1fr auto;padding:clamp(14px,2.4vw,32px)}
+
+  header{display:flex;justify-content:space-between;align-items:baseline;gap:24px}
+  .title{font-family:"Instrument Serif",Georgia,serif;font-size:clamp(34px,7vw,80px);
+    line-height:.9;letter-spacing:-.01em}
+  .title i{color:var(--latao)}
+  .sub{font-size:10px;letter-spacing:.34em;color:var(--dim);text-transform:uppercase;margin-top:.7em}
+  .note{max-width:30ch;text-align:right;font-size:11px;line-height:1.8;color:var(--dim);font-weight:300}
+  .note b{color:var(--luz);font-weight:500}
+
+  .deck{display:flex;gap:10px;flex-wrap:wrap;align-items:center;pointer-events:auto}
+  .group{display:flex;border:1px solid var(--line);border-radius:1px;overflow:hidden;background:rgba(4,16,15,.6);backdrop-filter:blur(6px)}
+  button{font:inherit;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    background:transparent;color:var(--dim);border:0;border-right:1px solid var(--line);
+    padding:10px 14px;cursor:pointer;transition:.18s}
+  .group button:last-child{border-right:0}
+  button:hover{color:var(--luz);background:rgba(201,162,74,.12)}
+  button[aria-pressed="true"]{background:var(--latao);color:var(--pece2)}
+  button:focus-visible{outline:2px solid var(--verdete);outline-offset:-2px}
+  .meta{font-size:10px;color:var(--dim);letter-spacing:.12em;margin-left:auto}
+  .meta b{color:var(--latao);font-weight:500}
+
+  /* corrente */
+  .power{position:fixed;inset:0;display:grid;place-items:center;pointer-events:auto;
+    background:radial-gradient(60% 60% at 50% 50%,rgba(8,25,26,.82),rgba(4,16,15,.97));
+    z-index:5;transition:opacity .6s}
+  .power.off{opacity:0;pointer-events:none}
+  .power button{border:1px solid var(--latao);color:var(--luz);padding:18px 34px;font-size:11px;
+    letter-spacing:.3em;background:transparent}
+  .power p{margin-top:18px;font-size:11px;color:var(--dim);letter-spacing:.1em;text-align:center;line-height:2}
+  @media (max-width:680px){ .note{display:none} }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Cordas tocáveis: arraste para dedilhar"></canvas>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1 class="title">Cor<i>dame</i></h1>
+      <p class="sub">Karplus–Strong · 1983 · síntese por corda excitada</p>
+    </div>
+    <p class="note">Não há amostras gravadas aqui. Cada nota nasce de <b>ruído</b> a circular
+      num anel de memória com o comprimento exato da corda. As vizinhas em oitava e
+      quinta vibram sozinhas: <b>ressonância simpática</b>.</p>
+  </header>
+  <div></div>
+  <div class="deck">
+    <div class="group" role="group" aria-label="Afinação">
+      <button data-sc="0" aria-pressed="true">Pentatónica</button>
+      <button data-sc="1">Dórico</button>
+      <button data-sc="2">Hirajōshi</button>
+    </div>
+    <div class="group" role="group" aria-label="Corpo">
+      <button data-bd="0">Seco</button>
+      <button data-bd="1" aria-pressed="true">Sala</button>
+      <button data-bd="2">Cisterna</button>
+    </div>
+    <div class="group" role="group" aria-label="Palheta">
+      <button data-br="0">Unha</button>
+      <button data-br="1" aria-pressed="true">Polpa</button>
+      <button data-br="2">Feltro</button>
+    </div>
+    <div class="group">
+      <button id="bFs" aria-pressed="false">Ecrã inteiro</button>
+    </div>
+    <p class="meta">arraste para dedilhar · teclas <b>A–;</b> · última nota <b id="last">—</b></p>
+  </div>
+</div>
+
+<div class="power" id="power">
+  <div style="text-align:center">
+    <button id="go">DAR CORRENTE</button>
+    <p>o navegador só deixa soar depois de um toque seu<br>ligue o som</p>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'), g=cv.getContext('2d');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let ac=null, master=null, wet=null, dry=null, conv=null, comp=null;
+
+// ---------- escalas ----------
+const SCALES=[[0,3,5,7,10],[0,2,3,5,7,9,10],[0,2,3,7,8]];
+const PT=['Dó','Dó♯','Ré','Ré♯','Mi','Fá','Fá♯','Sol','Sol♯','Lá','Lá♯','Si'];
+const ROOT=146.83;           // Ré3
+let scale=0, body=1, bright=1;
+const BRIGHT=[0.92,0.55,0.24];
+const REVERB=[[0.6,0.05],[2.2,0.30],[4.6,0.52]];   // duração, mistura
+
+// ---------- cordas ----------
+let S=[], W=0, H=0, dpr=1;
+function buildStrings(){
+  dpr=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cv.width=W*dpr; cv.height=H*dpr;
+  g.setTransform(dpr,0,0,dpr,0,0);
+  const n = W<620 ? 9 : W<1000 ? 13 : 17;
+  const sc=SCALES[scale];
+  S=[];
+  const pad = Math.max(48, W*0.07);
+  for(let i=0;i<n;i++){
+    const st = sc[i%sc.length] + 12*Math.floor(i/sc.length);
+    const f = ROOT*Math.pow(2, st/12);
+    S.push({
+      x: pad + (W-pad*2)*(n===1?0.5:i/(n-1)),
+      f, st,
+      name: PT[(2+st)%12] + (3+Math.floor((2+st)/12)),
+      amp:0, t0:-99, phase:0, bend:0, glow:0, bufs:[]
+    });
+  }
+}
+
+// ---------- síntese ----------
+function makeIR(sec, decay){
+  const sr=ac.sampleRate, len=Math.floor(sr*sec);
+  const b=ac.createBuffer(2,len,sr);
+  for(let ch=0;ch<2;ch++){
+    const d=b.getChannelData(ch);
+    for(let i=0;i<len;i++){
+      const t=i/len;
+      d[i]=(Math.random()*2-1)*Math.pow(1-t,decay)*(1-Math.exp(-i/220));
+    }
+  }
+  return b;
+}
+
+function pluckBuffer(freq){
+  const sr=ac.sampleRate;
+  const dur=Math.min(5.0, 1.4+2.8*(220/freq));
+  const len=Math.floor(sr*dur);
+  const buf=ac.createBuffer(1,len,sr);
+  const d=buf.getChannelData(0);
+  const n=Math.max(2, Math.round(sr/freq));
+  const ring=new Float32Array(n);
+  const b=BRIGHT[bright];
+  let prev=0;
+  for(let i=0;i<n;i++){ const r=Math.random()*2-1; prev+= (r-prev)*b; ring[i]=prev; }
+  const pick=Math.max(1,Math.floor(n*0.16));
+  const cp=ring.slice();
+  for(let i=0;i<n;i++) ring[i]=cp[i]-cp[(i+pick)%n]*0.72;
+  let mx=1e-6; for(let i=0;i<n;i++) mx=Math.max(mx,Math.abs(ring[i]));
+  for(let i=0;i<n;i++) ring[i]/=mx;
+
+  const damp=0.9975 - Math.min(0.0045, (freq/sr)*1.1);
+  let idx=0, lp=0;
+  for(let i=0;i<len;i++){
+    const cur=ring[idx];
+    d[i]=cur;
+    const nxt=ring[(idx+1)%n];
+    const v=(cur+nxt)*0.5;
+    lp=v*0.55+lp*0.45;
+    ring[idx]=(v*0.86+lp*0.14)*damp;
+    idx=(idx+1)%n;
+  }
+  const f=Math.floor(len*0.12);
+  for(let i=len-f;i<len;i++) d[i]*= (len-i)/f;
+  return buf;
+}
+
+function bufFor(s){
+  if(s.bufs.length<3) s.bufs.push(pluckBuffer(s.f));
+  return s.bufs[(Math.random()*s.bufs.length)|0];
+}
+
+function voice(s, vel, when){
+  if(!ac) return;
+  const src=ac.createBufferSource();
+  src.buffer=bufFor(s);
+  src.playbackRate.value=1+(Math.random()-0.5)*0.004;
+  const gn=ac.createGain();
+  gn.gain.value=Math.min(1,vel)*0.42;
+  const pan=ac.createStereoPanner ? ac.createStereoPanner() : null;
+  if(pan) pan.pan.value=(s.x/W-0.5)*1.3;
+  src.connect(gn);
+  if(pan){ gn.connect(pan); pan.connect(dry); pan.connect(conv); }
+  else { gn.connect(dry); gn.connect(conv); }
+  src.start(when||ac.currentTime);
+}
+
+function pluck(s, vel, sympathetic){
+  vel=Math.max(0.05,Math.min(1,vel));
+  voice(s, vel);
+  s.amp=Math.max(s.amp, vel*Math.min(26, 900/s.f*3));
+  s.t0=performance.now(); s.phase=Math.random()*6.28; s.glow=1;
+  document.getElementById('last').textContent=s.name;
+  if(sympathetic) return;
+  // ressonância simpática: oitavas, quintas, quartas
+  for(const o of S){
+    if(o===s) continue;
+    const r = o.f>s.f ? o.f/s.f : s.f/o.f;
+    const near = [2,1.5,1.3333,3,4].some(k=>Math.abs(r-k)<0.02*k);
+    if(near){
+      const v=vel*0.11;
+      setTimeout(()=>{ voice(o,v); o.amp=Math.max(o.amp,v*10); o.t0=performance.now();
+        o.phase=Math.random()*6.28; o.glow=Math.max(o.glow,.5); }, 18+Math.random()*30);
+    }
+  }
+}
+
+// ---------- desenho ----------
+function draw(){
+  const t=performance.now();
+  g.fillStyle='#04100F';
+  g.fillRect(0,0,W,H);
+  // luz de fundo
+  const grd=g.createRadialGradient(W*0.5,H*0.42,0,W*0.5,H*0.42,Math.max(W,H)*0.75);
+  grd.addColorStop(0,'rgba(18,52,50,.85)');
+  grd.addColorStop(1,'rgba(4,16,15,1)');
+  g.fillStyle=grd; g.fillRect(0,0,W,H);
+
+  const top=H*0.20, bot=H*0.90, L=bot-top;
+
+  for(const s of S){
+    const dt=(t-s.t0)/1000;
+    const tau=0.35+ 260/s.f;
+    const env = s.t0<0 ? 0 : Math.exp(-dt/tau);
+    const A = reduce ? 0 : s.amp*env;
+    s.glow*= 0.955;
+    const fv = Math.max(2.4, Math.min(13, s.f/16));
+    const ph = s.phase + dt*fv*6.283;
+
+    // corpo da corda
+    g.beginPath();
+    const seg=26;
+    for(let i=0;i<=seg;i++){
+      const u=i/seg, y=top+L*u;
+      const shape=Math.sin(Math.PI*u);
+      const d1=Math.sin(ph)*shape;
+      const d2=Math.sin(ph*2.02+1.1)*Math.sin(2*Math.PI*u)*0.28;
+      const x=s.x + A*(d1+d2) + s.bend*shape;
+      i?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    const lum=0.30+0.70*Math.min(1,s.glow+A/22);
+    g.strokeStyle='rgba('+Math.round(201*lum+40)+','+Math.round(162*lum+50)+','+Math.round(74*lum+40)+',.95)';
+    g.lineWidth=Math.max(0.8, 2.6 - s.st*0.045);
+    g.shadowBlur=26*Math.min(1,s.glow+A/26);
+    g.shadowColor='rgba(201,162,74,.85)';
+    g.stroke();
+    g.shadowBlur=0;
+
+    // cavilhas
+    g.fillStyle='rgba(240,231,210,'+(0.18+0.6*s.glow)+')';
+    g.fillRect(s.x-3, top-9, 6, 4);
+    g.fillRect(s.x-3, bot+5, 6, 4);
+    // etiqueta
+    g.font='300 9px "IBM Plex Mono",monospace';
+    g.textAlign='center';
+    g.fillStyle='rgba(240,231,210,'+(0.24+0.65*s.glow)+')';
+    g.fillText(s.name, s.x, bot+26);
+  }
+
+  // travessas
+  g.strokeStyle='rgba(201,162,74,.22)'; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,top-7); g.lineTo(W,top-7);
+  g.moveTo(0,bot+7); g.lineTo(W,bot+7); g.stroke();
+
+  requestAnimationFrame(draw);
+}
+
+// ---------- toque ----------
+let down=false, cur=null, lastX=0, lastT=0;
+function nearest(x){
+  let best=S[0], bd=1e9;
+  for(const s of S){ const d=Math.abs(s.x-x); if(d<bd){bd=d;best=s;} }
+  return best;
+}
+function release(s, vel){
+  if(!s) return;
+  const v = Math.max(0.14, Math.min(1, Math.abs(s.bend)/34 + vel));
+  s.bend=0;
+  pluck(s, v);
+}
+cv.addEventListener('pointerdown', e=>{
+  cv.setPointerCapture(e.pointerId);
+  down=true; cur=nearest(e.clientX); lastX=e.clientX; lastT=performance.now();
+  cur.bend=Math.max(-30,Math.min(30, e.clientX-cur.x));
+});
+cv.addEventListener('pointermove', e=>{
+  if(!down) return;
+  const now=performance.now();
+  const sp=Math.abs(e.clientX-lastX)/Math.max(1,now-lastT);
+  const n=nearest(e.clientX);
+  if(n!==cur){ release(cur, Math.min(0.9, sp*0.55)); cur=n; }
+  if(cur) cur.bend=Math.max(-30,Math.min(30, e.clientX-cur.x));
+  lastX=e.clientX; lastT=now;
+});
+function up(){ if(down){ release(cur,0.18); down=false; cur=null; } }
+cv.addEventListener('pointerup', up);
+cv.addEventListener('pointercancel', up);
+
+const KEYS='asdfghjkl;\'qwertyui';
+addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  const i=KEYS.indexOf(e.key.toLowerCase());
+  if(i>=0 && S[i]){ e.preventDefault(); pluck(S[i], 0.75); }
+});
+
+// ---------- controlos ----------
+function press(sel,el){ document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed', b===el?'true':'false')); }
+document.querySelectorAll('[data-sc]').forEach(b=>b.onclick=()=>{ scale=+b.dataset.sc; press('[data-sc]',b); buildStrings(); });
+document.querySelectorAll('[data-br]').forEach(b=>b.onclick=()=>{ bright=+b.dataset.br; press('[data-br]',b); S.forEach(s=>s.bufs=[]); });
+document.querySelectorAll('[data-bd]').forEach(b=>b.onclick=()=>{ body=+b.dataset.bd; press('[data-bd]',b); applyBody(); });
+
+function applyBody(){
+  if(!ac) return;
+  const [sec,mix]=REVERB[body];
+  conv.buffer=makeIR(sec, 2.4);
+  wet.gain.setTargetAtTime(mix, ac.currentTime, .05);
+  dry.gain.setTargetAtTime(1-mix*0.45, ac.currentTime, .05);
+}
+
+function boot(){
+  ac=new (window.AudioContext||window.webkitAudioContext)();
+  comp=ac.createDynamicsCompressor();
+  comp.threshold.value=-14; comp.ratio.value=3.2; comp.attack.value=.004; comp.release.value=.28;
+  master=ac.createGain(); master.gain.value=0.9;
+  dry=ac.createGain(); wet=ac.createGain();
+  conv=ac.createConvolver();
+  conv.connect(wet);
+  dry.connect(comp); wet.connect(comp);
+  comp.connect(master); master.connect(ac.destination);
+  applyBody();
+  ac.resume();
+  // acorde de abertura
+  [0,2,4,6].forEach((i,k)=>{ if(S[i]) setTimeout(()=>pluck(S[i],0.55), k*160); });
+}
+
+document.getElementById('go').onclick=()=>{
+  boot();
+  document.getElementById('power').classList.add('off');
+  cv.focus();
+};
+// ---------- ecrã inteiro ----------
+const bFs=document.getElementById('bFs');
+const root=document.documentElement;
+const canFs=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+const fsOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+function fsSync(){
+  const on=!!fsOn();
+  bFs.textContent = on ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
+  bFs.setAttribute('aria-pressed', on);
+  buildStrings();
+}
+if(!canFs) bFs.style.display='none';
+bFs.onclick=()=>{
+  if(!canFs) return;
+  if(!fsOn()){ (root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen).call(root); }
+  else { (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+};
+document.addEventListener('fullscreenchange',fsSync);
+document.addEventListener('webkitfullscreenchange',fsSync);
+
+addEventListener('resize', buildStrings);
+buildStrings();
+draw();
+})();
+</script>
+</body>
+</html>

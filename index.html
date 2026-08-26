@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EXC space — três demonstrações</title>
+<meta name="description" content="Três peças autónomas de código: uma colónia sem cérebro, um instrumento sintetizado e um oráculo determinístico.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{--void:#05030d;--ink:#EDE9FF;--dim:#7a739c;--line:rgba(160,150,220,.2);--live:#35E0D4}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--void);color:var(--ink);min-height:100vh;
+    font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;-webkit-font-smoothing:antialiased;
+    padding:clamp(20px,5vw,64px);display:flex;flex-direction:column;gap:clamp(28px,5vh,60px)}
+  header h1{font-family:"Syne",sans-serif;font-weight:800;text-transform:uppercase;
+    font-size:clamp(34px,9vw,86px);line-height:.86;letter-spacing:-.045em}
+  header p{color:var(--dim);font-size:12px;line-height:1.9;max-width:46ch;margin-top:1.6em}
+  header b{color:var(--ink);font-weight:500}
+  nav{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+  a.item{display:grid;grid-template-columns:auto 1fr;gap:clamp(14px,3vw,34px);align-items:baseline;
+    padding:clamp(18px,3.4vh,30px) 4px;border-bottom:1px solid var(--line);
+    text-decoration:none;color:inherit;transition:padding-left .25s,background .25s}
+  a.item:hover,a.item:focus-visible{background:rgba(160,150,220,.07);padding-left:14px;outline:none}
+  a.item:focus-visible{box-shadow:inset 3px 0 0 var(--live)}
+  .num{font-size:11px;color:var(--dim);letter-spacing:.2em;padding-top:.6em}
+  .name{font-family:"Syne",sans-serif;font-weight:700;font-size:clamp(20px,4.4vw,34px);
+    letter-spacing:-.02em;text-transform:uppercase;line-height:1}
+  .desc{color:var(--dim);font-size:12px;line-height:1.8;margin-top:.8em;max-width:52ch}
+  .tags{margin-top:.9em;font-size:9.5px;letter-spacing:.2em;color:var(--live);text-transform:uppercase}
+  footer{color:var(--dim);font-size:10px;letter-spacing:.14em;line-height:2;margin-top:auto}
+</style>
+</head>
+<body>
+  <header>
+    <h1>EXC<br>space</h1>
+    <p>Três peças autónomas. Nenhuma usa biblioteca externa, servidor ou base de dados:
+      cada uma é <b>um único ficheiro HTML</b> que corre inteiro dentro do seu navegador.
+      Funcionam com toque, teclado e rato.</p>
+  </header>
+
+  <nav>
+    <a class="item" href="01-protoplasma.html">
+      <span class="num">01</span>
+      <span>
+        <span class="name">Protoplasma</span>
+        <span class="desc">Três colónias de <i>Physarum polycephalum</i>, dezenas de milhares de agentes
+          que só sabem cheirar à frente e deixar rasto. Toque para alimentar, arraste para abrir caminho,
+          até quatro dedos ao mesmo tempo.</span>
+        <span class="tags">Canvas 2D · modelo de agentes · multi-toque</span>
+      </span>
+    </a>
+
+    <a class="item" href="02-cordame.html">
+      <span class="num">02</span>
+      <span>
+        <span class="name">Cordame</span>
+        <span class="desc">Um instrumento sem gravações: cada nota nasce de ruído a circular num anel
+          com o comprimento exato da corda. As vizinhas em oitava e quinta vibram sozinhas.
+          Precisa de som ligado.</span>
+        <span class="tags">Web Audio · Karplus–Strong · ressonância simpática</span>
+      </span>
+    </a>
+
+    <a class="item" href="03-semente.html">
+      <span class="num">03</span>
+      <span>
+        <span class="name">Semente</span>
+        <span class="desc">Um número gera ao mesmo tempo o céu e o poema. Ao sortear, o número rola,
+          os versos decifram-se e o céu atravessa um surto de turbulência até assentar.</span>
+        <span class="tags">WebGL · gramática generativa · semente partilhável</span>
+      </span>
+    </a>
+  </nav>
+
+  <footer>EXC space · ambiente de teste · três ficheiros, zero dependências</footer>
+</body>
+</html>
