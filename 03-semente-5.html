@@ -63,8 +63,13 @@
   .rise{opacity:0;transform:translateY(14px);animation:rise .9s cubic-bezier(.2,.7,.3,1) forwards}
   @keyframes rise{to{opacity:1;transform:none}}
 
-  footer{display:flex;gap:7px;flex-wrap:wrap;align-items:center;
+  footer{display:flex;gap:7px;flex-wrap:wrap;align-items:center;position:relative;
     border-top:1px solid var(--line);padding-top:11px;flex-shrink:0}
+  /* quanto falta para o próximo sorteio */
+  #prog{position:absolute;top:-1px;left:0;height:1px;width:0;background:#9BE7FF;
+    box-shadow:0 0 8px #9BE7FF;transition:opacity .3s;opacity:0}
+  #prog.on{opacity:.9}
+  #bRate{font-variant-numeric:tabular-nums;min-width:44px}
   button,a.btn{font:inherit;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
     display:inline-block;text-decoration:none;line-height:normal;
     background:transparent;color:var(--papel);border:1px solid var(--line);
@@ -110,8 +115,10 @@
   </main>
 
   <footer>
+    <i id="prog" aria-hidden="true"></i>
     <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
     <button id="bAuto" aria-pressed="false">Sequência</button>
+    <button id="bRate" title="Tempo entre sorteios">7 s</button>
     <button id="bLink">Copiar ligação</button>
     <button id="bText">Copiar poema</button>
     <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
@@ -388,17 +395,50 @@ function roll(){
 }
 bRoll.onclick=roll;
 
-// ---------- sequência automática ----------
-let autoT=null;
+// ---------- sequência automática, com ritmo ajustável ----------
+const RATES=[3000,5000,7000,12000,20000,45000];
+let rateIx=2, autoOn=false, nextAt=0, autoT=null;
 const bAuto=document.getElementById('bAuto');
-function autoStop(){ clearInterval(autoT); autoT=null;
-  bAuto.setAttribute('aria-pressed','false'); bAuto.textContent='Sequência'; }
-bAuto.onclick=()=>{
-  if(autoT) return autoStop();
-  bAuto.setAttribute('aria-pressed','true'); bAuto.textContent='Parar sequência';
-  roll();
-  autoT=setInterval(roll, 7000);
+const bRate=document.getElementById('bRate');
+const barEl=document.getElementById('prog');
+const period=()=>RATES[rateIx];
+
+function label(){ const s=period()/1000; bRate.textContent = s<60 ? s+' s' : (s/60)+' min'; }
+bRate.onclick=()=>{
+  rateIx=(rateIx+1)%RATES.length; label();
+  if(autoOn) arm();                     // o ritmo novo vale já, sem esperar o ciclo antigo
 };
+function arm(){
+  clearTimeout(autoT);
+  nextAt=performance.now()+period();
+  autoT=setTimeout(()=>{ roll(); if(autoOn) arm(); }, period());
+}
+function autoStop(){
+  autoOn=false; clearTimeout(autoT); autoT=null;
+  bAuto.setAttribute('aria-pressed','false'); bAuto.textContent='Sequência';
+  barEl.classList.remove('on'); barEl.style.width='0';
+}
+bAuto.onclick=()=>{
+  if(autoOn) return autoStop();
+  autoOn=true;
+  bAuto.setAttribute('aria-pressed','true'); bAuto.textContent='Parar';
+  barEl.classList.add('on');
+  roll(); arm();
+};
+// não gasta ciclos com o separador escondido; retoma a contagem ao voltar
+document.addEventListener('visibilitychange',()=>{
+  if(!autoOn) return;
+  if(document.hidden){ clearTimeout(autoT); autoT=null; }
+  else arm();
+});
+(function tickProg(){
+  if(autoOn && autoT){
+    const left=Math.max(0, nextAt-performance.now());
+    barEl.style.width=(100*(1-left/period()))+'%';
+  }
+  requestAnimationFrame(tickProg);
+})();
+label();
 
 document.getElementById('bLink').onclick=e=>{
   const u=shareLink();
@@ -414,13 +454,18 @@ const FS_REBUILD=()=>resize();
   const btn=document.getElementById('bFs');
   const framed = window.self!==window.top;
 
-  // dentro do painel EXC: a barra de cima trata de voltar e do ecrã inteiro,
+  // dentro do painel EXC: a barra de baixo trata de voltar e do ecrã inteiro,
   // e o modo nunca cai porque o documento de cima nunca é recarregado
   if(framed){
     if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
     document.querySelectorAll('a[data-nav]').forEach(a=>{
       const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
     });
+    // reserva o canto do polegar para a barra do painel
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
     return;
   }
 
@@ -454,7 +499,6 @@ const FS_REBUILD=()=>resize();
   document.addEventListener('fullscreenchange',sync);
   document.addEventListener('webkitfullscreenchange',sync);
 
-  // aberto em separador próprio já com pedido: entra ao primeiro gesto válido
   if(can && wanted() && !isOn()){
     req();
     const evs=['click','pointerup','touchend','keydown'];
