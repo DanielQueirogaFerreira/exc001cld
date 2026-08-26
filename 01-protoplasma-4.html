@@ -472,6 +472,18 @@ const FS_REBUILD=()=>build();
 (function(){
   const root=document.documentElement;
   const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+
+  // dentro do painel EXC: a barra de cima trata de voltar e do ecrã inteiro,
+  // e o modo nunca cai porque o documento de cima nunca é recarregado
+  if(framed){
+    if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
+    });
+    return;
+  }
+
   const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
   const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
   const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
@@ -479,7 +491,6 @@ const FS_REBUILD=()=>build();
   const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
   const wanted=()=>/[?&]fs=1/.test(location.search);
 
-  // os links internos levam o estado consigo
   function links(){
     document.querySelectorAll('a[data-nav]').forEach(a=>{
       const base=a.getAttribute('data-nav');
@@ -503,11 +514,13 @@ const FS_REBUILD=()=>build();
   document.addEventListener('fullscreenchange',sync);
   document.addEventListener('webkitfullscreenchange',sync);
 
-  // chegou já com pedido: tenta entrar, e se o navegador exigir gesto, entra ao primeiro toque
+  // aberto em separador próprio já com pedido: entra ao primeiro gesto válido
   if(can && wanted() && !isOn()){
     req();
-    const once=()=>{ if(!isOn()) req(); removeEventListener('pointerdown',once,true); removeEventListener('keydown',once,true); };
-    addEventListener('pointerdown',once,true); addEventListener('keydown',once,true);
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)), 20000);
   }
   links(); sync();
 })();
