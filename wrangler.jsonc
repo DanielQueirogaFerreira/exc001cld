@@ -1,7 +1,6 @@
 {
   // EXC001CLD — recursos estáticos servidos da raiz do repositório.
-  // O código só é chamado quando nenhum ficheiro corresponde ao pedido,
-  // ou seja, apenas em /api/*. Tudo o resto é estático e não é faturado.
+  // O código só corre em /api/*; tudo o resto é estático e não é faturado.
   "name": "exc001cld",
   "main": "worker.js",
   "compatibility_date": "2026-08-01",
@@ -9,10 +8,12 @@
     "directory": "./",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
-  }
-
-  // Depois de criar a base de dados D1, acrescentar aqui:
-  // ,"d1_databases": [
-  //   { "binding": "DB", "database_name": "colmeia", "database_id": "<id>" }
-  // ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "colmeia",
+      "database_id": "1b7ad7f8-0f2c-406b-80cf-d4f095702660"
+    }
+  ]
 }
