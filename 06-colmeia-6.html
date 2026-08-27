@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>COLMEIA — influência com direção</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --noite:#0B0B0F;
+    --cera:#EDE7DC;
+    --dim:#7C7566;
+    --line:rgba(237,231,220,.18);
+    --mel:#F2B441;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--noite);color:var(--cera);overflow:hidden}
+  body{font-family:"IBM Plex Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  .shell{position:fixed;inset:0;pointer-events:none;display:grid;
+    grid-template-rows:auto 1fr auto;padding:clamp(14px,2.4vw,30px)}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+  h1{font-family:"Unbounded",sans-serif;font-weight:800;
+    font-size:clamp(24px,5.4vw,58px);line-height:.92;letter-spacing:-.035em;text-transform:uppercase;
+    text-shadow:0 2px 20px rgba(11,11,15,.9)}
+  h1 em{display:block;font-style:normal;font-weight:500;font-family:"IBM Plex Mono",monospace;
+    font-size:clamp(9px,1.5vw,12px);letter-spacing:.32em;color:var(--dim);margin-top:1.1em;
+    text-shadow:none}
+  .plate{background:rgba(11,11,15,.36);border-radius:5px;
+    -webkit-backdrop-filter:blur(9px) brightness(.36) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.36) saturate(.9)}
+  .cartel{max-width:31ch;text-align:right;font-size:11px;line-height:1.75;color:var(--dim);
+    font-weight:300;padding:8px 11px;border-radius:5px}
+  .cartel b{color:var(--cera);font-weight:500}
+
+  .readout{align-self:end;display:flex;flex-wrap:wrap;gap:8px;row-gap:10px;
+    margin-bottom:14px;font-size:11px}
+  .cell{padding:6px 9px 7px;border-radius:4px;background:rgba(11,11,15,.36);
+    border:1px solid rgba(237,231,220,.12);
+    -webkit-backdrop-filter:blur(9px) brightness(.36) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.36) saturate(.9)}
+  .cell span{display:block;color:var(--dim);font-size:9px;letter-spacing:.22em;margin-bottom:3px}
+  .cell b{font-weight:500;font-variant-numeric:tabular-nums;font-size:14px}
+  .pollen{display:inline-flex;gap:3px;vertical-align:1px;margin-left:6px}
+  .pollen i{width:5px;height:5px;border-radius:50%;background:var(--mel);opacity:.28}
+  .pollen i.on{opacity:1;box-shadow:0 0 6px var(--mel)}
+
+  .deck{display:flex;gap:7px;flex-wrap:wrap;align-items:center;pointer-events:auto}
+  .group{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;
+    background:rgba(11,11,15,.82);backdrop-filter:blur(8px)}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    display:inline-block;text-decoration:none;line-height:normal;
+    background:transparent;color:var(--dim);border:0;border-right:1px solid var(--line);
+    padding:6px 9px;cursor:pointer;transition:.18s}
+  .group button:last-child{border-right:0}
+  button:hover,a.btn:hover{color:var(--cera);background:rgba(242,180,65,.16)}
+  button[aria-pressed="true"]{background:var(--mel);color:var(--noite)}
+  button:focus-visible,a.btn:focus-visible{outline:2px solid var(--mel);outline-offset:-2px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+  .swatches{display:flex;gap:0}
+  .sw{width:22px;height:26px;border:0;border-right:1px solid rgba(11,11,15,.5);padding:0;cursor:pointer;
+    transition:.15s;position:relative}
+  .sw[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--cera)}
+  .hint{font-size:10px;color:var(--dim);letter-spacing:.08em;margin-left:auto;text-align:right;
+    padding:6px 9px;border-radius:5px;transition:opacity .8s;line-height:1.7}
+  .hint.gone{opacity:0}
+  .aviso{color:var(--mel)}
+  .step{align-items:stretch}
+  .step b{display:flex;align-items:center;justify-content:center;min-width:52px;padding:0 7px;
+    font-size:10px;font-weight:500;color:var(--cera);font-variant-numeric:tabular-nums;
+    border-right:1px solid var(--line);letter-spacing:.02em}
+  .step em{display:flex;align-items:center;font-style:normal;font-size:8.5px;letter-spacing:.16em;
+    color:var(--dim);padding:0 8px;border-right:1px solid var(--line);text-transform:uppercase}
+  .step button{min-width:26px;font-size:12px;line-height:1;padding:6px 7px}
+  .rosa{display:inline-block;width:16px;height:16px;vertical-align:-3px;margin-left:6px}
+  .rosa svg{width:100%;height:100%;fill:none;stroke:var(--mel);stroke-width:2.4;stroke-linecap:round}
+  .barra{display:inline-block;width:44px;height:3px;background:rgba(237,231,220,.16);
+    vertical-align:3px;margin-left:7px;border-radius:2px;overflow:hidden}
+  .barra i{display:block;height:100%;width:0;background:var(--mel)}
+  /* cartão de regras */
+  .regras{position:fixed;inset:0;z-index:6;display:grid;place-items:center;pointer-events:auto;
+    background:radial-gradient(65% 65% at 50% 45%,rgba(11,11,15,.88),rgba(11,11,15,.98));
+    transition:opacity .45s}
+  .regras.off{opacity:0;pointer-events:none}
+  .regras[hidden]{display:none}
+  .cartao{max-width:min(440px,88vw);padding:26px 24px;border:1px solid var(--line);border-radius:6px;
+    background:rgba(11,11,15,.7)}
+  .cartao h2{font-family:"Unbounded",sans-serif;font-weight:600;font-size:15px;
+    letter-spacing:-.01em;margin-bottom:16px;text-transform:uppercase}
+  .cartao ol{list-style:none;counter-reset:r}
+  .cartao li{counter-increment:r;position:relative;padding-left:26px;margin-bottom:13px;
+    font-size:12px;line-height:1.75;color:var(--dim)}
+  .cartao li::before{content:counter(r);position:absolute;left:0;top:0;color:var(--mel);
+    font-size:10px;font-weight:500}
+  .cartao li b{color:var(--cera);font-weight:500}
+  #fimLista li{padding-left:0;display:flex;align-items:center;gap:9px;font-size:12px;
+    color:var(--cera);margin-bottom:9px}
+  #fimLista li::before{content:none}
+  #fimLista .pos{color:var(--dim);font-size:10px;min-width:18px}
+  #fimLista .cor{width:12px;height:12px;border-radius:2px;flex:0 0 12px}
+  #fimLista .pct{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--dim)}
+  #fimLista .eu{color:var(--mel)}
+  .codigo{font-family:"Unbounded",sans-serif;font-weight:800;font-size:clamp(30px,9vw,50px);
+    letter-spacing:.14em;color:var(--mel);margin:6px 0 4px}
+  .gente{margin:14px 0 0;display:flex;flex-direction:column;gap:7px}
+  .gente div{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--dim)}
+  .gente .pt{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+  .gente .pt.on{background:#5CCE78;box-shadow:0 0 8px #5CCE78}
+  .campo{display:flex;gap:6px;margin-top:12px}
+  .campo input{flex:1;font:inherit;font-size:13px;letter-spacing:.2em;text-transform:uppercase;
+    background:rgba(237,231,220,.06);border:1px solid var(--line);color:var(--cera);
+    padding:10px 12px;border-radius:3px;min-width:0}
+  .campo input:focus{outline:2px solid var(--mel);outline-offset:-1px}
+  .linhas{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .cartao .sec{font-size:10px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase;
+    margin:20px 0 8px;border-top:1px solid var(--line);padding-top:14px}
+  .cartao button{margin-top:8px;border:1px solid var(--mel);color:var(--cera);
+    padding:12px 22px;font-size:10px;letter-spacing:.24em;background:transparent}
+  @media (max-width:640px){ .cartel{display:none} }
+  @media (pointer:coarse){ button,a.btn{padding:8px 10px;font-size:9.5px} .sw{width:26px;height:30px} }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Favo hexagonal onde grupos de cor disputam território por influência direcional"></canvas>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1>Colmeia<em>influência direcional · ciclos de propagação</em></h1>
+    </div>
+    <p class="cartel plate">Cada célula <b>aponta para um dos seis lados</b> e empurra a sua cor
+      nesse sentido. De ciclo a ciclo, quem recebe mais influência muda de dono e <b>herda a
+      direção de quem a conquistou</b>. Daí saem corredores, frentes e cercos.</p>
+  </header>
+
+  <div class="readout">
+    <div class="cell"><span>CICLO</span><b id="rCiclo">—<i class="barra"><i id="bCiclo"></i></i></b></div>
+    <div class="cell"><span>SEU DOMÍNIO</span><b id="rDom">—</b></div>
+    <div class="cell"><span>LÍDER</span><b id="rLider">—</b></div>
+    <div class="cell"><span>GRUPOS</span><b id="rGrupos">—</b></div>
+    <div class="cell"><span>PÓLEN</span><b id="rPolen">—</b></div>
+    <div class="cell"><span>PROA</span><b id="rProa">—</b></div>
+    <div class="cell"><span>FAVO</span><b id="rRede">a ligar…</b></div>
+    <div class="cell" id="cPartida" hidden><span>PARTIDA · MÃOS</span><b id="rPartida">—</b></div>
+  </div>
+
+  <div class="deck">
+    <div class="group">
+      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    </div>
+    <div class="group swatches" id="swatches" role="group" aria-label="Cor do seu grupo"></div>
+    <div class="group step" role="group" aria-label="Duração do ciclo">
+      <em>ciclo</em><button data-passo="ciclo" data-inc="-1" aria-label="Ciclo mais curto">−</button>
+      <b id="vCiclo">18 s</b><button data-passo="ciclo" data-inc="1" aria-label="Ciclo mais longo">+</button>
+    </div>
+    <div class="group step" role="group" aria-label="Recarga do pólen">
+      <em>pólen</em><button data-passo="recarga" data-inc="-1" aria-label="Recarga mais rápida">−</button>
+      <b id="vRecarga">6,5 s</b><button data-passo="recarga" data-inc="1" aria-label="Recarga mais lenta">+</button>
+    </div>
+    <div class="group step" role="group" aria-label="Número de grupos">
+      <em>grupos</em><button data-passo="grupos" data-inc="-1" aria-label="Menos grupos">−</button>
+      <b id="vGrupos">4</b><button data-passo="grupos" data-inc="1" aria-label="Mais grupos">+</button>
+    </div>
+    <div class="group" role="group" aria-label="Modo">
+      <button data-modo="solo" aria-pressed="true">Solo</button>
+      <button data-modo="sala">Sala</button>
+    </div>
+    <div class="group">
+      <button id="bAgora">Ciclo já</button>
+      <button id="bRegras">Regras</button>
+      <button id="bNovo">Novo favo</button>
+      <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    </div>
+    <p class="hint plate" id="hint">toque para tomar a célula · arraste a partir dela para escolher o lado</p>
+  </div>
+</div>
+
+<div class="regras" id="fim" hidden>
+  <div class="cartao">
+    <h2 id="fimTitulo">Favo estabilizado</h2>
+    <p id="fimNota" style="font-size:11px;color:var(--dim);line-height:1.8;margin:-6px 0 16px">
+      Nenhuma célula mudou de dono no último ciclo: as frentes travaram-se.</p>
+    <ol id="fimLista" style="counter-reset:none"></ol>
+    <div style="margin-top:18px;height:2px;background:rgba(237,231,220,.16);border-radius:2px;overflow:hidden">
+      <i id="fimBarra" style="display:block;height:100%;width:0;background:var(--mel)"></i>
+    </div>
+    <p style="font-size:10px;color:var(--dim);letter-spacing:.1em;margin-top:9px" id="fimConta">
+      novo favo em 15 s · toque no favo para ficar</p>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button id="fimNovo">NOVO FAVO</button>
+      <button id="fimFicar" style="border-color:var(--line);color:var(--dim)">FICAR</button>
+    </div>
+  </div>
+</div>
+
+<div class="regras" id="sala" hidden>
+  <div class="cartao">
+    <h2 id="salaTitulo">Jogar em sala</h2>
+    <div id="salaCriar">
+      <p style="font-size:11px;color:var(--dim);line-height:1.8">
+        Crie uma sala e passe o código a quem quiser. O favo é o mesmo para todos,
+        e o ritmo é o que definir aqui antes de começar.</p>
+      <div class="linhas">
+        <button id="salaNova">CRIAR SALA</button>
+      </div>
+      <div class="sec">Entrar numa sala</div>
+      <div class="campo">
+        <input id="salaCod" maxlength="5" placeholder="CÓDIGO" autocomplete="off" spellcheck="false">
+        <button id="salaEntrar">ENTRAR</button>
+      </div>
+    </div>
+    <div id="salaDentro" hidden>
+      <p style="font-size:10px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase">código da sala</p>
+      <p class="codigo" id="salaCodigo">—</p>
+      <div class="linhas">
+        <button id="salaCopiar">COPIAR LIGAÇÃO</button>
+        <button id="salaSair" style="border-color:var(--line);color:var(--dim)">SAIR</button>
+      </div>
+      <div class="sec">Quem está aqui</div>
+      <div class="gente" id="salaGente"></div>
+      <p id="salaCfg" style="font-size:10px;color:var(--dim);margin-top:14px;letter-spacing:.06em"></p>
+      <div class="linhas">
+        <button id="salaPronto" aria-pressed="false">ESTOU PRONTO</button>
+        <button id="salaComecar" hidden>COMEÇAR JÁ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="regras" id="regras">
+  <div class="cartao">
+    <h2>Como o favo se move</h2>
+    <ol>
+      <li>Toque numa célula para a <b>tomar para a sua cor</b>. Arraste a partir dela para decidir
+        <b>para que lado ela empurra</b> — a seta dentro do hexágono mostra a proa.</li>
+      <li>A cada ciclo, cada célula soma a influência das vizinhas <b>que apontam para ela</b>.
+        Quem tiver mais, toma a célula — e ela passa a apontar no mesmo sentido do conquistador.</li>
+      <li>A influência não vai só em frente: <b>derrama para os dois lados vizinhos</b>, com
+        metade da força. Por isso um punhado bem orientado abre território, e não um risco fino.</li>
+      <li>Uma célula sozinha resiste. <b>Duas a apontar para a mesma</b> derrubam-na — vale mais
+        concentrar do que espalhar.</li>
+      <li>O <b>pólen é contado</b>: tomar terreno alheio custa dois, virar a proa de uma célula
+        já sua custa um. Escolher onde reforçar é o jogo.</li>
+    </ol>
+    <button id="bComecar">COMEÇAR</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'), g=cv.getContext('2d');
+
+// ================= grupos =================
+const CORES=[[242,180,65],[240,110,74],[222,72,120],[150,90,224],
+             [72,120,232],[54,196,196],[92,206,120],[196,206,84]];
+const NOMES=['Âmbar','Coral','Magenta','Violeta','Anil','Turquesa','Musgo','Lima'];
+let eu=0;                       // o seu grupo
+
+// ================= favo =================
+const RAIO=8;
+const DIRS=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];   // seis lados, sentido horário
+let HEX=[], IDX=new Map(), W=0,H=0,size=20,cx=0,cy=0;
+const chave=(q,r)=>q+','+r;
+
+function construir(){
+  HEX=[]; IDX.clear();
+  for(let q=-RAIO;q<=RAIO;q++){
+    const r1=Math.max(-RAIO,-q-RAIO), r2=Math.min(RAIO,-q+RAIO);
+    for(let r=r1;r<=r2;r++){
+      const h={q,r,c:-1,d:0,i:HEX.length,flash:0};
+      HEX.push(h); IDX.set(chave(q,r),h);
+    }
+  }
+  medir();
+}
+function vizinho(h,d){ return IDX.get(chave(h.q+DIRS[d][0], h.r+DIRS[d][1])); }
+function medir(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0);
+  const larg=Math.sqrt(3)*(RAIO+0.6)*2, alt=1.5*(RAIO+0.75)*2+0.5;
+  size=Math.min(W*0.94/larg, H*0.70/alt);
+  cx=W/2; cy=H*0.47;
+}
+const pos=h=>({x: cx+size*Math.sqrt(3)*(h.q+h.r/2), y: cy+size*1.5*h.r});
+function achar(px,py){
+  let best=null,bd=1e9;
+  for(const h of HEX){ const p=pos(h), d=(p.x-px)**2+(p.y-py)**2; if(d<bd){bd=d;best=h;} }
+  return bd<(size*0.95)**2 ? best : null;
+}
+
+// ================= semear rivais =================
+let nGrupos=4;
+function semear(){
+  for(const h of HEX){ h.c=-1; h.d=0; h.flash=0; }
+  const passo=CORES.length/nGrupos;
+  const grupos=[];
+  for(let k=0;k<nGrupos;k++) grupos.push(Math.round(k*passo)%CORES.length);
+  const porGrupo=Math.max(4, Math.round(46/nGrupos));
+  grupos.forEach((cor,k)=>{
+    const ang=(Math.PI*2/grupos.length)*k + 0.6;
+    const raio=RAIO*0.62;
+    const q0=Math.round(Math.cos(ang)*raio), r0=Math.round(Math.sin(ang)*raio*0.9);
+    const semente=IDX.get(chave(q0,r0)) || HEX[(Math.random()*HEX.length)|0];
+    const proa=(Math.round(((ang+Math.PI)/(Math.PI/3)))%6+6)%6;   // apontam para o centro
+    const fila=[semente]; const vistos=new Set([semente.i]);
+    let n=0;
+    while(fila.length && n<porGrupo){
+      const h=fila.shift(); h.c=cor; h.d=proa; n++;
+      for(let d=0;d<6;d++){
+        const v=vizinho(h,d);
+        if(v && !vistos.has(v.i) && Math.random()<0.6){ vistos.add(v.i); fila.push(v); }
+      }
+    }
+  });
+  ciclos=0; historico=[];
+}
+
+// ================= a regra =================
+// cada célula soma a influência das vizinhas que apontam para ela.
+// a própria cor pesa como inércia. quem passar a inércia, toma — e impõe a sua proa.
+const INERCIA=1.55;      // resistir a ser tomada
+const FRENTE=1.0;        // empurra com força para o lado que aponta
+const FLANCO=0.55;       // e derrama para os dois lados vizinhos: é isto que faz território
+const LIMIAR=0.5;        // mínimo para ocupar uma célula vazia
+let ciclos=0, historico=[];
+function ciclo(){
+  const novo=HEX.map(h=>({c:h.c,d:h.d,mudou:false}));
+  for(let i=0;i<HEX.length;i++){
+    const h=HEX[i];
+    const forca=new Map();
+    let apoio=null, apoioPeso=0;
+    if(h.c>=0) forca.set(h.c, INERCIA);
+    for(let d=0;d<6;d++){
+      const v=vizinho(h,d);
+      if(!v || v.c<0) continue;
+      let peso=0;
+      const frente=vizinho(v, v.d);
+      if(frente && frente.i===h.i) peso=FRENTE;
+      else {
+        for(const lado of [(v.d+1)%6,(v.d+5)%6]){
+          const f=vizinho(v,lado);
+          if(f && f.i===h.i){ peso=FLANCO; break; }
+        }
+      }
+      if(!peso) continue;
+      forca.set(v.c,(forca.get(v.c)||0)+peso);
+      if(peso>apoioPeso){ apoioPeso=peso; apoio=v; }
+    }
+    if(!forca.size) continue;
+    let vencedor=-1, maior=0, segundo=0;
+    forca.forEach((f,c)=>{
+      if(f>maior){ segundo=maior; maior=f; vencedor=c; }
+      else if(f>segundo) segundo=f;
+    });
+    if(vencedor<0 || vencedor===h.c) continue;
+    if(Math.abs(maior-segundo)<1e-6) continue;          // empate: ninguém toma
+    if(h.c<0 && maior<LIMIAR) continue;                 // vazia precisa de um mínimo
+    novo[i].c=vencedor; novo[i].mudou=true;
+    if(apoio && apoio.c===vencedor) novo[i].d=apoio.d;  // herda a proa de quem a conquistou
+  }
+  let mudancas=0;
+  for(let i=0;i<HEX.length;i++){
+    if(novo[i].mudou){ HEX[i].c=novo[i].c; HEX[i].d=novo[i].d; HEX[i].flash=1; mudancas++; }
+  }
+  ciclos++;
+  historico.push(dominio(eu));
+  if(historico.length>40) historico.shift();
+  return mudancas;
+}
+function dominio(cor){
+  let n=0,t=0;
+  for(const h of HEX){ if(h.c>=0){ t++; if(h.c===cor) n++; } }
+  return t? n/t : 0;
+}
+
+// ================= rede: salas =================
+// O favo vive no servidor, por sala. Sem sala, joga-se sozinho com todos os
+// parâmetros à mão. Numa sala, o ritmo é o que o criador definiu, igual para todos.
+let modo='solo', fase='', salaCod='', partida=0, maos=0, cicloRede=60000;
+let porEnviar=[], envioT=null, sondaT=null, souDono=false, estouPronto=false;
+const EU_ID=(function(){
+  try{
+    let v=localStorage.getItem('colmeia_id');
+    if(!v){ v=Math.random().toString(36).slice(2,10); localStorage.setItem('colmeia_id',v); }
+    return v;
+  }catch(e){ return Math.random().toString(36).slice(2,10); }
+})();
+const painelSala=document.getElementById('sala');
+
+function aplicarEstado(d){
+  const t=d.estado||'';
+  for(let i=0;i<HEX.length;i++){
+    const c=t[i*2], dd=t[i*2+1];
+    if(c===undefined) break;
+    const cor = c==='.' ? -1 : (c.charCodeAt(0)-48);
+    if(HEX[i].c!==cor) HEX[i].flash=1;
+    HEX[i].c=cor; HEX[i].d=(dd.charCodeAt(0)-48)%6;
+  }
+  salaCod=d.sala; fase=d.fase; souDono=!!d.dono;
+  partida=d.partida|0; maos=d.maos|0; cicloRede=d.ciclo||60000;
+  if(d.proximo!=null) proximo=Date.now()+d.proximo;
+  if(typeof d.polen==='number') polen=d.polen;
+  if(d.polenMax) POLEN_MAX=d.polenMax;
+  if(d.recarga) RECARGA=d.recarga;
+  if(d.custo){ CUSTO_NOVO=d.custo.novo; CUSTO_PROA=d.custo.proa; }
+  if(d.config){ nGrupos=d.config.grupos; }
+  if(d.gente) desenharGente(d.gente);
+  document.getElementById('salaCfg').textContent =
+    d.config ? ('ciclo '+d.config.ciclo+' s · '+d.config.grupos+' grupos · pólen a cada '+d.config.recarga+' s') : '';
+  if(fase==='a jogar'){
+    if(!painelSala.hidden){ painelSala.classList.add('off'); setTimeout(()=>painelSala.hidden=true,450); }
+    if(d.parado && !terminado) terminar();
+    if(!d.parado && terminado) fecharFim(false);
+  }
+  atualizarBotoesModo();
+}
+function desenharGente(gente){
+  const el=document.getElementById('salaGente');
+  el.innerHTML='';
+  gente.forEach((g,k)=>{
+    const d=document.createElement('div');
+    d.innerHTML='<i class="pt'+(g.pronto?' on':'')+'"></i>'+
+      '<span'+(g.eu?' style="color:var(--cera)"':'')+'>'+(g.eu?'você':'mão '+(k+1))+'</span>'+
+      '<span style="margin-left:auto">'+(g.pronto?'pronto':'a decidir')+'</span>';
+    el.appendChild(d);
+  });
+  if(!gente.length) el.innerHTML='<div>ainda ninguém</div>';
+}
+
+async function api(corpo){
+  const r=await fetch('api/colmeia',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify(Object.assign({id:EU_ID},corpo))});
+  const d=await r.json();
+  if(d.erro) throw new Error(d.erro);
+  return d;
+}
+async function sondar(){
+  if(modo!=='sala'||!salaCod) return;
+  try{
+    const r=await fetch('api/colmeia?sala='+salaCod+'&v='+EU_ID);
+    const d=await r.json();
+    if(d.erro) throw new Error(d.erro);
+    aplicarEstado(d);
+  }catch(e){ avisoSala(e.message); }
+}
+function avisoSala(msg){
+  document.getElementById('salaTitulo').textContent = msg==='sala não encontrada'
+    ? 'Essa sala não existe' : 'Sala indisponível';
+}
+function agendarEnvio(){ clearTimeout(envioT); envioT=setTimeout(enviar,500); }
+async function enviar(){
+  if(modo!=='sala'||!salaCod||!porEnviar.length) return;
+  const lote=porEnviar.splice(0,24);
+  try{ aplicarEstado(await api({acao:'marcar', sala:salaCod, marks:lote})); }
+  catch(e){ avisoSala(e.message); }
+}
+function guardarSala(c){
+  try{ c ? localStorage.setItem('colmeia_sala',c) : localStorage.removeItem('colmeia_sala'); }catch(e){}
+  if(c) location.hash='sala='+c; else if(location.hash) history.replaceState(null,'',location.pathname+location.search);
+}
+async function criarSala(){
+  try{
+    const d=await api({acao:'criar', config:{
+      ciclo:CICLOS[iCiclo], grupos:nGrupos, recarga:RECARGAS[iRecarga]}});
+    entrarModo('sala'); aplicarEstado(d); mostrarDentro(); guardarSala(d.sala);
+  }catch(e){ avisoSala(e.message); }
+}
+async function entrarSala(cod){
+  cod=(cod||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
+  if(cod.length<5) return;
+  try{
+    const r=await fetch('api/colmeia?sala='+cod+'&v='+EU_ID);
+    const d=await r.json();
+    if(d.erro) throw new Error(d.erro);
+    entrarModo('sala'); aplicarEstado(d); mostrarDentro(); guardarSala(cod);
+  }catch(e){ avisoSala(e.message); }
+}
+function mostrarDentro(){
+  document.getElementById('salaCriar').hidden=true;
+  document.getElementById('salaDentro').hidden=false;
+  document.getElementById('salaTitulo').textContent='Sala aberta';
+  document.getElementById('salaCodigo').textContent=salaCod;
+  document.getElementById('salaComecar').hidden=!souDono;
+  painelSala.hidden=false; painelSala.classList.remove('off');
+}
+function entrarModo(m){
+  modo=m;
+  document.querySelectorAll('[data-modo]').forEach(b=>
+    b.setAttribute('aria-pressed', b.dataset.modo===m ? 'true':'false'));
+  const emSala = m==='sala';
+  document.getElementById('cPartida').hidden=!emSala;
+  [['[data-passo]',emSala],['#bNovo',emSala],['#bAgora',emSala]].forEach(([sel,off])=>{
+    document.querySelectorAll(sel).forEach(b=>{ b.disabled=off; b.style.opacity=off?.35:1;
+      b.title = off ? 'em sala, o ritmo é do servidor' : ''; });
+  });
+  clearInterval(sondaT);
+  if(emSala){ sondaT=setInterval(()=>{ if(!document.hidden) sondar(); }, fase==='a jogar'?5000:2500); }
+  else { salaCod=''; fase=''; guardarSala(''); }
+  atualizarBotoesModo();
+}
+function atualizarBotoesModo(){
+  const b=document.getElementById('salaPronto');
+  if(b){ b.setAttribute('aria-pressed', estouPronto); b.textContent = estouPronto?'PRONTO ✓':'ESTOU PRONTO'; }
+  document.getElementById('salaComecar').hidden=!souDono;
+}
+
+document.querySelectorAll('[data-modo]').forEach(b=>b.onclick=()=>{
+  if(b.dataset.modo==='solo'){ entrarModo('solo'); semear(); polen=POLEN_MAX; }
+  else {
+    entrarModo('sala');
+    if(salaCod) mostrarDentro();
+    else {
+      document.getElementById('salaCriar').hidden=false;
+      document.getElementById('salaDentro').hidden=true;
+      document.getElementById('salaTitulo').textContent='Jogar em sala';
+      painelSala.hidden=false; painelSala.classList.remove('off');
+    }
+  }
+  esconder();
+});
+document.getElementById('salaNova').onclick=criarSala;
+document.getElementById('salaEntrar').onclick=()=>entrarSala(document.getElementById('salaCod').value);
+document.getElementById('salaCod').addEventListener('keydown',e=>{ if(e.key==='Enter') entrarSala(e.target.value); });
+document.getElementById('salaCopiar').onclick=async e=>{
+  const u=/^https?:/.test(location.href) ? location.href.split('#')[0]+'#sala='+salaCod : 'sala '+salaCod;
+  try{ await navigator.clipboard.writeText(u); }catch(err){}
+  e.currentTarget.textContent='COPIADO'; setTimeout(()=>e.currentTarget.textContent='COPIAR LIGAÇÃO',1600);
+};
+document.getElementById('salaSair').onclick=()=>{ entrarModo('solo'); semear();
+  painelSala.classList.add('off'); setTimeout(()=>painelSala.hidden=true,450); };
+document.getElementById('salaPronto').onclick=async()=>{
+  estouPronto=!estouPronto; atualizarBotoesModo();
+  try{ aplicarEstado(await api({acao:'pronto', sala:salaCod, pronto:estouPronto})); }
+  catch(e){ avisoSala(e.message); }
+};
+document.getElementById('salaComecar').onclick=async()=>{
+  try{ aplicarEstado(await api({acao:'comecar', sala:salaCod})); }
+  catch(e){ avisoSala(e.message); }
+};
+
+// ================= fim de favo =================
+// quando um ciclo inteiro passa sem uma única troca de dono, as frentes
+// travaram-se: não há mais movimento possível sem intervenção.
+let paradas=0, terminado=false, autoAte=0;
+const AUTOPLAY=15000;
+const fim=document.getElementById('fim');
+
+function classificacao(){
+  const cont={};
+  for(const h of HEX) if(h.c>=0) cont[h.c]=(cont[h.c]||0)+1;
+  return Object.keys(cont).map(k=>({c:+k,n:cont[k]}))
+    .sort((a,b)=>b.n-a.n);
+}
+function terminar(){
+  if(terminado) return;
+  terminado=true;
+  const tab=classificacao();
+  const lista=document.getElementById('fimLista');
+  lista.innerHTML='';
+  tab.forEach((g,k)=>{
+    const li=document.createElement('li');
+    if(g.c===eu) li.className='eu';
+    li.innerHTML='<span class="pos">'+(k+1)+'º</span>'+
+      '<i class="cor" style="background:rgb('+CORES[g.c].join(',')+')"></i>'+
+      '<span>'+NOMES[g.c]+(g.c===eu?' · você':'')+'</span>'+
+      '<span class="pct">'+Math.round(g.n/HEX.length*100)+'% · '+g.n+'</span>';
+    lista.appendChild(li);
+  });
+  const vazias=HEX.length-tab.reduce((a,g)=>a+g.n,0);
+  document.getElementById('fimTitulo').textContent =
+    tab.length===1 ? 'Favo tomado por '+NOMES[tab[0].c] : 'Favo estabilizado';
+  document.getElementById('fimNota').textContent =
+    tab.length===1 ? 'Um só grupo restou: não há mais fronteiras para disputar.'
+    : 'Nenhuma célula mudou de dono no último ciclo — as frentes travaram-se'
+      + (vazias? ', e sobraram '+vazias+' células por ocupar.' : '.');
+  if(modo==='sala'){
+    autoAte=0;
+    document.getElementById('fimConta').textContent='o servidor semeia um favo novo no próximo ciclo';
+    document.getElementById('fimBarra').style.width='100%';
+    document.getElementById('fimNovo').style.display='none';
+  } else {
+    autoAte=Date.now()+AUTOPLAY;
+    document.getElementById('fimNovo').style.display='';
+  }
+  fim.hidden=false; fim.classList.remove('off');
+}
+function fecharFim(recomecar){
+  fim.classList.add('off'); setTimeout(()=>fim.hidden=true,450);
+  terminado=false; paradas=0; autoAte=0;
+  if(recomecar && modo!=='sala'){ semear(); polen=POLEN_MAX; proximo=Date.now()+duracao(); }
+}
+document.getElementById('fimNovo').onclick=()=>fecharFim(true);
+document.getElementById('fimFicar').onclick=()=>fecharFim(false);
+
+// ================= pólen e gesto =================
+let POLEN_MAX=32;
+let RECARGA=6500;
+let CUSTO_NOVO=2, CUSTO_PROA=1;
+let polen=POLEN_MAX, ultimaRecarga=Date.now(), proa=0;
+let arrastando=null, arrastoPos=null;
+
+function tomar(h,d){
+  if(!h) return;
+  const meu = h.c===eu;
+  const custo = meu?CUSTO_PROA:CUSTO_NOVO;
+  if(polen<custo){ aviso=1; return; }
+  polen-=custo;
+  h.c=eu; h.d=d; h.flash=1;
+  proa=d;
+  if(modo==='sala'){ porEnviar.push({i:h.i,c:eu,d:d}); agendarEnvio(); }
+  if(navigator.vibrate) navigator.vibrate(meu?4:8);
+  esconder();
+}
+function ladoDe(h,px,py){
+  const p=pos(h);
+  const ang=Math.atan2(py-p.y, px-p.x);
+  // DIRS em coordenadas axiais → ângulos no ecrã
+  let melhor=0, md=9;
+  for(let d=0;d<6;d++){
+    const v={q:h.q+DIRS[d][0], r:h.r+DIRS[d][1]};
+    const pv={x: cx+size*Math.sqrt(3)*(v.q+v.r/2), y: cy+size*1.5*v.r};
+    const a=Math.atan2(pv.y-p.y, pv.x-p.x);
+    let dd=Math.abs(a-ang); if(dd>Math.PI) dd=Math.PI*2-dd;
+    if(dd<md){ md=dd; melhor=d; }
+  }
+  return melhor;
+}
+cv.addEventListener('pointerdown',e=>{
+  if(terminado) fecharFim(false);          // a sua mão manda: fica-se no favo
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  arrastando=achar(e.clientX,e.clientY);
+  arrastoPos={x:e.clientX,y:e.clientY,x0:e.clientX,y0:e.clientY};
+});
+cv.addEventListener('pointermove',e=>{
+  if(!arrastando) return;
+  arrastoPos.x=e.clientX; arrastoPos.y=e.clientY;
+});
+function soltar(e){
+  if(!arrastando) return;
+  const dx=arrastoPos.x-arrastoPos.x0, dy=arrastoPos.y-arrastoPos.y0;
+  const d = Math.hypot(dx,dy) > size*0.5 ? ladoDe(arrastando,arrastoPos.x,arrastoPos.y) : proa;
+  tomar(arrastando,d);
+  arrastando=null; arrastoPos=null;
+}
+cv.addEventListener('pointerup',soltar);
+cv.addEventListener('pointercancel',()=>{ arrastando=null; arrastoPos=null; });
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ================= desenho =================
+function caminho(x,y,s){
+  g.beginPath();
+  for(let i=0;i<6;i++){
+    const a=Math.PI/180*(60*i-90);
+    const px=x+s*Math.cos(a), py=y+s*Math.sin(a);
+    i?g.lineTo(px,py):g.moveTo(px,py);
+  }
+  g.closePath();
+}
+function seta(h,p,col){
+  const v={q:h.q+DIRS[h.d][0], r:h.r+DIRS[h.d][1]};
+  const pv={x: cx+size*Math.sqrt(3)*(v.q+v.r/2), y: cy+size*1.5*v.r};
+  const ang=Math.atan2(pv.y-p.y, pv.x-p.x);
+  const L=size*0.48;
+  const ex=p.x+Math.cos(ang)*L, ey=p.y+Math.sin(ang)*L;
+  g.strokeStyle='rgba(11,11,15,.72)'; g.lineWidth=Math.max(1.4,size*0.10);
+  g.lineCap='round';
+  g.beginPath(); g.moveTo(p.x-Math.cos(ang)*L*0.45, p.y-Math.sin(ang)*L*0.45); g.lineTo(ex,ey); g.stroke();
+  const w=size*0.20;
+  g.beginPath();
+  g.moveTo(ex,ey);
+  g.lineTo(ex-Math.cos(ang-0.5)*w, ey-Math.sin(ang-0.5)*w);
+  g.lineTo(ex-Math.cos(ang+0.5)*w, ey-Math.sin(ang+0.5)*w);
+  g.closePath(); g.fillStyle='rgba(11,11,15,.72)'; g.fill();
+}
+let aviso=0;
+function pintar(){
+  g.fillStyle='#0B0B0F'; g.fillRect(0,0,W,H);
+  for(const h of HEX){
+    const p=pos(h), s=size*0.92;
+    if(h.c<0){
+      caminho(p.x,p.y,s);
+      g.fillStyle='rgba(237,231,220,.03)'; g.fill();
+      g.strokeStyle='rgba(237,231,220,.10)'; g.lineWidth=1; g.stroke();
+      continue;
+    }
+    const col=CORES[h.c];
+    caminho(p.x,p.y,s);
+    g.fillStyle='rgb('+col.join(',')+')';
+    if(h.flash>0){ g.shadowBlur=26*h.flash; g.shadowColor='rgb('+col.join(',')+')'; }
+    g.fill(); g.shadowBlur=0;
+    g.strokeStyle = h.c===eu ? 'rgba(237,231,220,.55)' : 'rgba(11,11,15,.6)';
+    g.lineWidth = h.c===eu ? 1.8 : 1.4;
+    g.stroke();
+    seta(h,p,col);
+    if(h.flash>0) h.flash*=0.93;
+  }
+  // gesto em curso: linha da proa a ser escolhida
+  if(arrastando && arrastoPos){
+    const p=pos(arrastando);
+    caminho(p.x,p.y,size*1.02);
+    g.strokeStyle='rgba(237,231,220,.8)'; g.lineWidth=2; g.stroke();
+    const dx=arrastoPos.x-arrastoPos.x0, dy=arrastoPos.y-arrastoPos.y0;
+    if(Math.hypot(dx,dy)>size*0.5){
+      const d=ladoDe(arrastando,arrastoPos.x,arrastoPos.y);
+      const v={q:arrastando.q+DIRS[d][0], r:arrastando.r+DIRS[d][1]};
+      const pv={x: cx+size*Math.sqrt(3)*(v.q+v.r/2), y: cy+size*1.5*v.r};
+      g.strokeStyle='rgba('+CORES[eu].join(',')+',.9)'; g.lineWidth=3; g.lineCap='round';
+      g.beginPath(); g.moveTo(p.x,p.y); g.lineTo(pv.x,pv.y); g.stroke();
+    }
+  }
+  if(aviso>0){
+    aviso*=0.94;
+    g.strokeStyle='rgba(242,180,65,'+(aviso*0.55)+')'; g.lineWidth=2;
+    caminho(cx,cy,size*(RAIO+1)*1.55); g.stroke();
+  }
+}
+
+// ================= ritmo e leitura =================
+const CICLOS=[2,3,5,8,12,18,25,40,60,90,120];      // segundos
+const RECARGAS=[1,1.5,2,3,4.5,6.5,9,13,20,30,45];  // segundos por unidade de pólen
+let iCiclo=5, iRecarga=5;
+const duracao=()=>modo==='sala'?cicloRede:CICLOS[iCiclo]*1000;
+let proximo=Date.now()+duracao();
+const rCiclo=document.getElementById('rCiclo'), bCiclo=document.getElementById('bCiclo'),
+      rDom=document.getElementById('rDom'), rLider=document.getElementById('rLider'),
+      rGrupos=document.getElementById('rGrupos'), rPolen=document.getElementById('rPolen'),
+      rProa=document.getElementById('rProa');
+const ROSA=['↗','↑','↖','↙','↓','↘'];
+function hud(){
+  const falta=Math.max(0,proximo-Date.now());
+  rCiclo.firstChild.textContent=(falta/1000).toFixed(1)+'s ';
+  bCiclo.style.width=(100*(1-falta/duracao()))+'%';
+  const meu=dominio(eu);
+  const tend = historico.length>1 ? (historico[historico.length-1]-historico[0]) : 0;
+  rDom.textContent=Math.round(meu*100)+'%'+(Math.abs(tend)>0.01?(tend>0?' ↑':' ↓'):'');
+  const cont={};
+  for(const h of HEX) if(h.c>=0) cont[h.c]=(cont[h.c]||0)+1;
+  const chaves=Object.keys(cont);
+  let lid=-1,ln=0;
+  for(const k of chaves){ if(cont[k]>ln){ ln=cont[k]; lid=+k; } }
+  rLider.textContent = lid<0?'—':NOMES[lid]+' '+Math.round(ln/HEX.length*100)+'%';
+  rLider.style.color = lid<0?'':'rgb('+CORES[lid].join(',')+')';
+  rGrupos.textContent=chaves.length;
+  rPolen.textContent=Math.floor(polen)+' / '+POLEN_MAX;
+  rProa.textContent=ROSA[proa];
+  const rr=document.getElementById('rRede');
+  rr.textContent = modo==='sala'
+    ? (fase==='a jogar' ? 'sala '+salaCod : 'sala '+salaCod+' · à espera')
+    : 'solo';
+  rr.className = modo==='sala' ? '' : 'aviso';
+  if(modo==='sala') document.getElementById('rPartida').textContent='#'+partida+' · '+maos;
+  const est=document.getElementById('rCiclo');
+  est.style.color = terminado ? 'var(--mel)' : '';
+}
+function recarregar(){
+  if(polen>=POLEN_MAX){ ultimaRecarga=Date.now(); return; }
+  if(Date.now()-ultimaRecarga>RECARGA){ polen++; ultimaRecarga=Date.now(); }
+}
+let acc=0,last=performance.now();
+function frame(now){
+  const dt=now-last; last=now;
+  if(!document.hidden){
+    if(modo!=='sala' && !terminado && Date.now()>=proximo){
+      const m=ciclo();
+      proximo=Date.now()+duracao();
+      if(m===0) paradas++; else paradas=0;
+      if(paradas>=1) terminar();
+    }
+    if(terminado && autoAte && modo!=='sala'){
+      const falta=Math.max(0,autoAte-Date.now());
+      document.getElementById('fimBarra').style.width=(100*(1-falta/AUTOPLAY))+'%';
+      document.getElementById('fimConta').textContent =
+        'novo favo em '+Math.ceil(falta/1000)+' s · toque no favo para ficar';
+      if(falta<=0) fecharFim(true);
+    }
+    pintar();
+  }
+  acc+=dt; if(acc>120){ recarregar(); hud(); acc=0; }
+  requestAnimationFrame(frame);
+}
+
+// ================= controlos =================
+const sw=document.getElementById('swatches');
+CORES.forEach((c,i)=>{
+  const b=document.createElement('button');
+  b.className='sw'; b.style.background='rgb('+c.join(',')+')';
+  b.setAttribute('aria-pressed', i===0?'true':'false');
+  b.title=NOMES[i]; b.setAttribute('aria-label','Grupo '+NOMES[i]);
+  b.onclick=()=>{ eu=i; historico=[];
+    sw.querySelectorAll('.sw').forEach(x=>x.setAttribute('aria-pressed', x===b?'true':'false'));
+    esconder(); };
+  sw.appendChild(b);
+});
+function press(sel,el){ document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed', b===el?'true':'false')); }
+const num=n=>String(n).replace('.',',');
+function mostrarPassos(){
+  document.getElementById('vCiclo').textContent=num(CICLOS[iCiclo])+' s';
+  document.getElementById('vRecarga').textContent=num(RECARGAS[iRecarga])+' s';
+  document.getElementById('vGrupos').textContent=nGrupos;
+  RECARGA=RECARGAS[iRecarga]*1000;
+}
+document.querySelectorAll('[data-passo]').forEach(b=>b.onclick=()=>{
+  const inc=+b.dataset.inc;
+  if(b.dataset.passo==='ciclo'){
+    iCiclo=Math.max(0,Math.min(CICLOS.length-1,iCiclo+inc));
+    proximo=Math.min(proximo, Date.now()+duracao());
+  } else if(b.dataset.passo==='recarga'){
+    iRecarga=Math.max(0,Math.min(RECARGAS.length-1,iRecarga+inc));
+  } else {
+    const antes=nGrupos;
+    nGrupos=Math.max(2,Math.min(CORES.length,nGrupos+inc));
+    if(nGrupos!==antes){ semear(); polen=POLEN_MAX; }   // mudar de grupos refaz o favo
+  }
+  mostrarPassos(); esconder();
+});
+document.getElementById('bAgora').onclick=()=>{ ciclo(); proximo=Date.now()+duracao(); esconder(); };
+document.getElementById('bNovo').onclick=()=>{ semear(); polen=POLEN_MAX; esconder(); };
+const regras=document.getElementById('regras');
+document.getElementById('bRegras').onclick=()=>{ regras.hidden=false; regras.classList.remove('off'); };
+document.getElementById('bComecar').onclick=()=>{
+  regras.classList.add('off'); setTimeout(()=>regras.hidden=true,500);
+};
+const hint=document.getElementById('hint'); let escondido=false;
+function esconder(){ if(escondido) return; escondido=true; setTimeout(()=>hint.classList.add('gone'),3200); }
+
+const FS_REBUILD=()=>medir();
+let rz=null;
+addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(medir,180); });
+addEventListener('orientationchange',()=>setTimeout(medir,320));
+
+construir(); semear(); mostrarPassos();
+// ligação por endereço: #sala=XXXXX entra direto
+(function(){
+  const m=/sala=([A-Za-z0-9]{5})/.exec(location.hash);
+  let guardada=null;
+  try{ guardada=localStorage.getItem('colmeia_sala'); }catch(e){}
+  const cod = m ? m[1] : guardada;
+  if(cod) entrarSala(cod);
+})();
+addEventListener('pagehide',()=>{ if(porEnviar.length) enviar(); });
+requestAnimationFrame(frame);
+})();
+</script>
+<script>
+// ---------- imersão: só a arte, sem números ----------
+(function(){
+  const framed = window.self!==window.top;
+  const st=document.createElement('style');
+  st.textContent =
+    '.shell,header,footer{transition:opacity .5s}'+
+    'html.zen .shell,html.zen header,html.zen footer{opacity:0;pointer-events:none}'+
+    '#zenOut{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));'+
+    'bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;width:30px;height:30px;'+
+    'border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.4);'+
+    'color:#fff;opacity:0;pointer-events:none;transition:opacity .4s;display:grid;'+
+    'place-items:center;cursor:pointer;padding:0;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}'+
+    'html.zen #zenOut{opacity:.34;pointer-events:auto}'+
+    '#zenOut:hover,#zenOut:focus-visible{opacity:.95}'+
+    '#zenOut svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}';
+  document.head.appendChild(st);
+  const EYE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  const EYE_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11.05 6.03 11.5 6 12 6c6.4 0 10 6 10 6s-1.2 2-3.3 3.7M6.4 8.3C3.9 9.9 2 12 2 12s3.6 6.5 10 6.5c1.3 0 2.5-.2 3.5-.6"/></svg>';
+  let btn=null;
+  function setZen(on){
+    document.documentElement.classList.toggle('zen', !!on);
+    if(btn){ btn.setAttribute('aria-pressed', !!on); btn.innerHTML = on?EYE_OFF:EYE; }
+  }
+  const isZen=()=>document.documentElement.classList.contains('zen');
+  const fsb=document.getElementById('bFs');
+  if(fsb&&fsb.parentNode){
+    btn=document.createElement('button');
+    btn.className='fsbtn'; btn.id='bZen';
+    btn.setAttribute('aria-pressed','false');
+    btn.title='Imersão: esconder números'; btn.setAttribute('aria-label',btn.title);
+    btn.innerHTML=EYE;
+    btn.addEventListener('click',()=>setZen(!isZen()));
+    fsb.parentNode.insertBefore(btn, fsb);
+    if(framed) btn.style.display='none';
+  }
+  if(!framed){
+    const out=document.createElement('button');
+    out.id='zenOut'; out.innerHTML=EYE_OFF;
+    out.title='Sair da imersão'; out.setAttribute('aria-label',out.title);
+    out.addEventListener('click',()=>setZen(false));
+    document.body.appendChild(out);
+  }
+  addEventListener('message',e=>{ if(e.data&&e.data.exc==='zen') setZen(e.data.on); });
+  addEventListener('keydown',e=>{
+    if((e.key==='z'||e.key==='Z')&&!e.metaKey&&!e.ctrlKey) setZen(!isZen());
+    if(e.key==='Escape'&&isZen()) setZen(false);
+  });
+})();
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+  if(framed){
+    if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
+    });
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
+    return;
+  }
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){ btn.setAttribute('aria-pressed',on);
+      const lbl=on?'Sair do ecrã inteiro':'Ecrã inteiro'; btn.title=lbl; btn.setAttribute('aria-label',lbl); }
+    links();
+  }
+  if(btn){ if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); }); }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+  if(can && wanted() && !isOn()){
+    req();
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)),20000);
+  }
+  links(); sync();
+})();
+</script>
+
+
+</body>
+</html>
