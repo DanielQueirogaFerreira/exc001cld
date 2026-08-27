@@ -121,7 +121,7 @@ function contar(cor) {
 
 
 // ---------- persistência ----------
-const ESQUEMA = 4;   // subir este número refaz as tabelas
+const ESQUEMA = 5;   // subir este número refaz as tabelas
 
 async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
@@ -144,7 +144,13 @@ async function tabelas(db) {
       partida INTEGER NOT NULL DEFAULT 1, parado INTEGER NOT NULL DEFAULT 0,
       visivel INTEGER NOT NULL DEFAULT 1, senha TEXT NOT NULL DEFAULT '',
       nome TEXT NOT NULL DEFAULT '', chave INTEGER NOT NULL DEFAULT 1,
-      sistema INTEGER NOT NULL DEFAULT 1)`),
+      sistema INTEGER NOT NULL DEFAULT 1,
+      expira INTEGER NOT NULL DEFAULT 30,        -- minutos sem uso; 0 = sem prazo
+      cetro TEXT, regra TEXT NOT NULL DEFAULT 'fixo', cetro_t INTEGER NOT NULL DEFAULT 0,
+      cetro_n INTEGER NOT NULL DEFAULT 5, volta INTEGER NOT NULL DEFAULT 0,
+      anuncio TEXT, aplicado INTEGER NOT NULL DEFAULT 0,
+      pciclo INTEGER, pgrupos INTEGER, precarga INTEGER,
+      mexida INTEGER NOT NULL DEFAULT 0)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS chaves (
       sala TEXT NOT NULL, versao INTEGER NOT NULL, resumo TEXT NOT NULL,
       desde INTEGER NOT NULL, ate INTEGER, autor TEXT NOT NULL,
@@ -153,7 +159,8 @@ async function tabelas(db) {
       sala TEXT NOT NULL, v TEXT NOT NULL, visto INTEGER NOT NULL,
       pronto INTEGER NOT NULL DEFAULT 0, cor INTEGER NOT NULL DEFAULT 0,
       polen REAL NOT NULL DEFAULT 32, tpolen INTEGER NOT NULL,
-      marcas INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (sala, v))`),
+      marcas INTEGER NOT NULL DEFAULT 0, chegada INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (sala, v))`),
     db.prepare(`CREATE TABLE IF NOT EXISTS partidas (
       sala TEXT NOT NULL, partida INTEGER NOT NULL, fim INTEGER NOT NULL,
       tabela TEXT NOT NULL, chave INTEGER NOT NULL DEFAULT 1,
@@ -189,6 +196,7 @@ async function criarSala(db, dono, cfg) {
   const visivel = cfg.visivel === false ? 0 : 1;
   const senha = await resumo(String(cfg.senha || '').slice(0, 32));
   const nome = String(cfg.nome || '').slice(0, 24);
+  const expira = limitar(cfg.expira === 0 ? 0 : (cfg.expira || 30), [0, 1440], 30);
   const agora = Date.now();
   const s = semear(1, grupos);
   let ultimo = null;
@@ -196,10 +204,11 @@ async function criarSala(db, dono, cfg) {
     const sala = codigo();
     try {
       await db.prepare(`INSERT INTO salas
-        (sala,dono,criada,ciclo,grupos,recarga,fase,estado,t,partida,parado,visivel,senha,nome)
-        VALUES (?,?,?,?,?,?,'espera',?,?,1,0,?,?,?)`)
+        (sala,dono,criada,ciclo,grupos,recarga,fase,estado,t,partida,parado,visivel,senha,nome,
+         expira,cetro,mexida)
+        VALUES (?,?,?,?,?,?,'espera',?,?,1,0,?,?,?,?,?,?)`)
         .bind(sala, dono, agora, ciclo, grupos, recarga, serializar(s.cor, s.proa), agora,
-              visivel, senha, nome).run();
+              visivel, senha, nome, expira, dono, agora).run();
       await db.prepare(`INSERT INTO chaves (sala,versao,resumo,desde,ate,autor)
         VALUES (?,1,?,?,NULL,?)`).bind(sala, senha, agora, dono).run();
       return sala;
@@ -228,17 +237,36 @@ async function radar(db) {
 
 async function marcarPresenca(db, sala, v, pronto) {
   const agora = Date.now();
+  await db.prepare(`UPDATE salas SET mexida=? WHERE sala=?`).bind(agora, sala).run();
   const p = await db.prepare(`SELECT * FROM presencas WHERE sala=? AND v=?`).bind(sala, v).first();
   if (!p) {
-    await db.prepare(`INSERT INTO presencas (sala,v,visto,pronto,polen,tpolen) VALUES (?,?,?,?,?,?)`)
-      .bind(sala, v, agora, pronto ? 1 : 0, POLEN_MAX, agora).run();
-    return { sala, v, visto: agora, pronto: pronto ? 1 : 0, polen: POLEN_MAX, tpolen: agora, marcas: 0, cor: 0 };
+    await db.prepare(`INSERT INTO presencas (sala,v,visto,pronto,polen,tpolen,chegada) VALUES (?,?,?,?,?,?,?)`)
+      .bind(sala, v, agora, pronto ? 1 : 0, POLEN_MAX, agora, agora).run();
+    return { sala, v, visto: agora, pronto: pronto ? 1 : 0, polen: POLEN_MAX, tpolen: agora,
+             marcas: 0, cor: 0, chegada: agora };
   }
   const np = pronto === null ? p.pronto : (pronto ? 1 : 0);
   await db.prepare(`UPDATE presencas SET visto=?, pronto=? WHERE sala=? AND v=?`)
     .bind(agora, np, sala, v).run();
   p.visto = agora; p.pronto = np;
   return p;
+}
+
+// quem manda a seguir, conforme a regra escolhida
+async function proximoCetro(db, sala) {
+  const agora = Date.now();
+  const g = await db.prepare(
+    `SELECT v, chegada, marcas FROM presencas WHERE sala=? AND visto > ? ORDER BY chegada`)
+    .bind(sala.sala, agora - PRESENTE_MS).all();
+  const gente = g.results;
+  if (!gente.length) return sala.cetro;
+  const regra = sala.regra;
+  if (regra === 'aleatorio') return gente[Math.floor(Math.random() * gente.length)].v;
+  if (regra === 'maior') return gente.slice().sort((a, b) => b.marcas - a.marcas)[0].v;
+  if (regra === 'menor') return gente.slice().sort((a, b) => a.marcas - b.marcas)[0].v;
+  // 'tempo' e 'chegada': passa ao seguinte na ordem de chegada
+  const i = gente.findIndex(x => x.v === sala.cetro);
+  return gente[(i + 1) % gente.length].v;
 }
 
 // avança os ciclos até ao presente, só se a sala estiver a jogar
@@ -253,12 +281,29 @@ async function atualizar(db, sala) {
     t = agora - CICLO_MS * MAX_CICLOS_POR_PEDIDO;
     voltas = MAX_CICLOS_POR_PEDIDO;
   }
+  let cetro = sala.cetro, volta = sala.volta, regraMexeu = false;
   for (let k = 0; k < voltas; k++) {
+    // mudança anunciada entra em vigor no ciclo seguinte
+    if (sala.pciclo || sala.precarga || sala.pgrupos) {
+      if (sala.pciclo) { sala.ciclo = sala.pciclo; sala.pciclo = null; }
+      if (sala.precarga) { sala.recarga = sala.precarga; sala.precarga = null; }
+      sala.aplicado = Date.now();
+      regraMexeu = true;
+    }
+    // rodízio do ceptro
+    if (sala.regra !== 'fixo' && sala.regra !== 'solto' && cetro) {
+      volta += 1;
+      const alvo = sala.regra === 'aleatorio'
+        ? Math.max(1, Math.round(1 + Math.random() * (sala.cetro_n - 1)))
+        : sala.cetro_n;
+      if (volta >= alvo) { volta = 0; cetro = await proximoCetro(db, { ...sala, cetro }); regraMexeu = true; }
+    }
     if (parado) {
       await db.prepare(`INSERT OR REPLACE INTO partidas (sala,partida,fim,tabela,chave)
         VALUES (?,?,?,?,?)`)
         .bind(sala.sala, partida, t, JSON.stringify(contar(cor)), sala.chave || 1).run();
       partida += 1;
+      if (sala.pgrupos) { sala.grupos = sala.pgrupos; sala.pgrupos = null; sala.aplicado = Date.now(); }
       const s = semear(partida, sala.grupos);
       cor = s.cor; proa = s.proa; parado = 0;
     } else {
@@ -268,10 +313,12 @@ async function atualizar(db, sala) {
     }
     t += CICLO_MS; mexeu = true;
   }
-  if (mexeu) {
-    await db.prepare(`UPDATE salas SET estado=?, t=?, partida=?, parado=? WHERE sala=?`)
-      .bind(serializar(cor, proa), t, partida, parado, sala.sala).run();
-    sala.t = t; sala.partida = partida; sala.parado = parado;
+  if (mexeu || regraMexeu) {
+    await db.prepare(`UPDATE salas SET estado=?, t=?, partida=?, parado=?, ciclo=?, recarga=?,
+      grupos=?, pciclo=?, precarga=?, pgrupos=?, aplicado=?, cetro=?, volta=? WHERE sala=?`)
+      .bind(serializar(cor, proa), t, partida, parado, sala.ciclo, sala.recarga, sala.grupos,
+            sala.pciclo, sala.precarga, sala.pgrupos, sala.aplicado, cetro, volta, sala.sala).run();
+    sala.t = t; sala.partida = partida; sala.parado = parado; sala.cetro = cetro; sala.volta = volta;
   }
   return { cor, proa, t, partida, parado };
 }
@@ -294,6 +341,16 @@ async function retrato(db, sala, estado, eu) {
     trancada: !!sala.senha,
     chave: sala.chave || 1,
     sistema: !!sala.sistema,
+    expira: sala.expira,
+    cetro: sala.cetro,
+    souCetro: !!(eu && sala.cetro === eu.v),
+    souDonoSala: !!(eu && sala.dono === eu.v),
+    regra: sala.regra,
+    cetroN: sala.cetro_n,
+    anuncio: sala.anuncio ? JSON.parse(sala.anuncio) : null,
+    aplicado: sala.aplicado || 0,
+    pendente: (sala.pciclo || sala.precarga || sala.pgrupos)
+      ? { ciclo: sala.pciclo, recarga: sala.precarga, grupos: sala.pgrupos } : null,
     fase: sala.fase,
     dono: sala.dono === (eu && eu.v),
     config: { ciclo: sala.ciclo, grupos: sala.grupos, recarga: sala.recarga },
@@ -353,6 +410,13 @@ export default {
 
     try {
       await tabelas(env.DB);
+      // salas com prazo que ficaram à espera sem ninguém: desaparecem
+      if (Math.random() < 0.15) {
+        const agora = Date.now();
+        await env.DB.prepare(
+          `DELETE FROM salas WHERE expira > 0 AND fase='espera' AND mexida < (? - expira*60000)`)
+          .bind(agora).run();
+      }
 
       // ---- consulta ----
       if (request.method === 'GET') {
@@ -449,6 +513,76 @@ export default {
           `SELECT partida, fim, chave FROM partidas WHERE sala=? ORDER BY partida`)
           .bind(sala.sala).all();
         return json({ chaveiro: h.results, partidas: p.results });
+      }
+
+      if (acao === 'cetro') {
+        const souDono = sala.dono === v, souCetro = sala.cetro === v;
+        const m = corpo.modo;
+        if (m === 'pegar') {
+          if (sala.cetro) return json({ erro: 'o ceptro já tem dono' }, 409);
+          await env.DB.prepare(`UPDATE salas SET cetro=?, volta=0 WHERE sala=?`).bind(v, sala.sala).run();
+          sala.cetro = v;
+        } else if (!souDono && !souCetro) {
+          return json({ erro: 'não tem o ceptro' }, 403);
+        } else if (m === 'passar') {
+          const para = String(corpo.para || '').slice(0, 24);
+          await env.DB.prepare(`UPDATE salas SET cetro=?, volta=0 WHERE sala=?`).bind(para, sala.sala).run();
+          sala.cetro = para;
+        } else if (m === 'largar') {
+          await env.DB.prepare(`UPDATE salas SET cetro=NULL, regra='solto' WHERE sala=?`).bind(sala.sala).run();
+          sala.cetro = null; sala.regra = 'solto';
+        } else if (m === 'retomar') {
+          if (!souDono) return json({ erro: 'só quem criou retoma' }, 403);
+          await env.DB.prepare(`UPDATE salas SET cetro=?, regra='fixo', volta=0 WHERE sala=?`)
+            .bind(v, sala.sala).run();
+          sala.cetro = v; sala.regra = 'fixo';
+        } else if (m === 'regra') {
+          const r = ['fixo', 'solto', 'tempo', 'aleatorio', 'chegada', 'maior', 'menor']
+            .includes(corpo.regra) ? corpo.regra : 'fixo';
+          const n = limitar(corpo.n || 5, [1, 50], 5);
+          await env.DB.prepare(`UPDATE salas SET regra=?, cetro_n=?, volta=0 WHERE sala=?`)
+            .bind(r, n, sala.sala).run();
+          sala.regra = r; sala.cetro_n = n;
+        }
+        const estado = await atualizar(env.DB, sala);
+        return json(await retrato(env.DB, sala, estado, eu));
+      }
+
+      if (acao === 'config') {
+        if (sala.cetro !== v && sala.dono !== v) return json({ erro: 'não tem o ceptro' }, 403);
+        const c = corpo.config || {};
+        const pc = c.ciclo ? limitar(c.ciclo, LIMITES.ciclo, sala.ciclo) : null;
+        const pr = c.recarga ? limitar(c.recarga, LIMITES.recarga, sala.recarga) : null;
+        const pg = c.grupos ? limitar(c.grupos, LIMITES.grupos, sala.grupos) : null;
+        const anuncio = JSON.stringify({
+          por: v, quando: Date.now(), ciclo: pc, recarga: pr, grupos: pg
+        });
+        if (sala.fase === 'espera') {
+          // ainda ninguém joga: entra já
+          await env.DB.prepare(`UPDATE salas SET ciclo=?, recarga=?, grupos=?, anuncio=?, aplicado=? WHERE sala=?`)
+            .bind(pc || sala.ciclo, pr || sala.recarga, pg || sala.grupos, anuncio, Date.now(), sala.sala).run();
+          sala.ciclo = pc || sala.ciclo; sala.recarga = pr || sala.recarga; sala.grupos = pg || sala.grupos;
+          sala.aplicado = Date.now();
+          if (pg) {
+            const s2 = semear(sala.partida, sala.grupos);
+            await env.DB.prepare(`UPDATE salas SET estado=? WHERE sala=?`)
+              .bind(serializar(s2.cor, s2.proa), sala.sala).run();
+            sala.estado = serializar(s2.cor, s2.proa);
+          }
+        } else {
+          await env.DB.prepare(`UPDATE salas SET pciclo=?, precarga=?, pgrupos=?, anuncio=? WHERE sala=?`)
+            .bind(pc, pr, pg, anuncio, sala.sala).run();
+          sala.pciclo = pc; sala.precarga = pr; sala.pgrupos = pg; sala.anuncio = anuncio;
+        }
+        const estado = await atualizar(env.DB, sala);
+        return json(await retrato(env.DB, sala, estado, eu));
+      }
+
+      if (acao === 'fechar') {
+        if (sala.dono !== v) return json({ erro: 'só quem criou fecha a sala' }, 403);
+        await env.DB.prepare(`DELETE FROM salas WHERE sala=?`).bind(sala.sala).run();
+        await env.DB.prepare(`DELETE FROM presencas WHERE sala=?`).bind(sala.sala).run();
+        return json({ fechada: true });
       }
 
       if (acao === 'marcar') {
