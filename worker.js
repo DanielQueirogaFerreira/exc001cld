@@ -121,7 +121,7 @@ function contar(cor) {
 
 
 // ---------- persistência ----------
-const ESQUEMA = 3;   // subir este número refaz as tabelas
+const ESQUEMA = 4;   // subir este número refaz as tabelas
 
 async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
@@ -133,7 +133,8 @@ async function tabelas(db) {
     db.prepare(`DROP TABLE IF EXISTS jogadores`),
     db.prepare(`DROP TABLE IF EXISTS partidas`),
     db.prepare(`DROP TABLE IF EXISTS salas`),
-    db.prepare(`DROP TABLE IF EXISTS presencas`)
+    db.prepare(`DROP TABLE IF EXISTS presencas`),
+    db.prepare(`DROP TABLE IF EXISTS chaves`)
   ]);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS salas (
@@ -142,7 +143,12 @@ async function tabelas(db) {
       fase TEXT NOT NULL, estado TEXT NOT NULL, t INTEGER NOT NULL,
       partida INTEGER NOT NULL DEFAULT 1, parado INTEGER NOT NULL DEFAULT 0,
       visivel INTEGER NOT NULL DEFAULT 1, senha TEXT NOT NULL DEFAULT '',
-      nome TEXT NOT NULL DEFAULT '')`),
+      nome TEXT NOT NULL DEFAULT '', chave INTEGER NOT NULL DEFAULT 1,
+      sistema INTEGER NOT NULL DEFAULT 1)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS chaves (
+      sala TEXT NOT NULL, versao INTEGER NOT NULL, resumo TEXT NOT NULL,
+      desde INTEGER NOT NULL, ate INTEGER, autor TEXT NOT NULL,
+      PRIMARY KEY (sala, versao))`),
     db.prepare(`CREATE TABLE IF NOT EXISTS presencas (
       sala TEXT NOT NULL, v TEXT NOT NULL, visto INTEGER NOT NULL,
       pronto INTEGER NOT NULL DEFAULT 0, cor INTEGER NOT NULL DEFAULT 0,
@@ -150,7 +156,8 @@ async function tabelas(db) {
       marcas INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (sala, v))`),
     db.prepare(`CREATE TABLE IF NOT EXISTS partidas (
       sala TEXT NOT NULL, partida INTEGER NOT NULL, fim INTEGER NOT NULL,
-      tabela TEXT NOT NULL, PRIMARY KEY (sala, partida))`)
+      tabela TEXT NOT NULL, chave INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (sala, partida))`)
   ]);
   await db.prepare(`INSERT OR REPLACE INTO meta (chave,valor) VALUES ('esquema',?)`)
     .bind(String(ESQUEMA)).run();
@@ -193,6 +200,8 @@ async function criarSala(db, dono, cfg) {
         VALUES (?,?,?,?,?,?,'espera',?,?,1,0,?,?,?)`)
         .bind(sala, dono, agora, ciclo, grupos, recarga, serializar(s.cor, s.proa), agora,
               visivel, senha, nome).run();
+      await db.prepare(`INSERT INTO chaves (sala,versao,resumo,desde,ate,autor)
+        VALUES (?,1,?,?,NULL,?)`).bind(sala, senha, agora, dono).run();
       return sala;
     } catch (e) { ultimo = e; }
   }
@@ -246,8 +255,9 @@ async function atualizar(db, sala) {
   }
   for (let k = 0; k < voltas; k++) {
     if (parado) {
-      await db.prepare(`INSERT OR REPLACE INTO partidas (sala,partida,fim,tabela) VALUES (?,?,?,?)`)
-        .bind(sala.sala, partida, t, JSON.stringify(contar(cor))).run();
+      await db.prepare(`INSERT OR REPLACE INTO partidas (sala,partida,fim,tabela,chave)
+        VALUES (?,?,?,?,?)`)
+        .bind(sala.sala, partida, t, JSON.stringify(contar(cor)), sala.chave || 1).run();
       partida += 1;
       const s = semear(partida, sala.grupos);
       cor = s.cor; proa = s.proa; parado = 0;
@@ -282,6 +292,8 @@ async function retrato(db, sala, estado, eu) {
     nome: sala.nome || '',
     visivel: !!sala.visivel,
     trancada: !!sala.senha,
+    chave: sala.chave || 1,
+    sistema: !!sala.sistema,
     fase: sala.fase,
     dono: sala.dono === (eu && eu.v),
     config: { ciclo: sala.ciclo, grupos: sala.grupos, recarga: sala.recarga },
@@ -319,6 +331,14 @@ const json = (d, s = 200) => new Response(JSON.stringify(d), {
   }
 });
 
+async function autorizado(sala, dada, env) {
+  if (!sala.senha) return true;
+  if (sala.senha === await resumo(dada || '')) return true;
+  // chave de sistema: só vale se a sala a permitir e se estiver configurada no Worker
+  if (sala.sistema && env.CHAVE_SISTEMA && (dada || '') === env.CHAVE_SISTEMA) return true;
+  return false;
+}
+
 async function abrirSala(db, cod) {
   return db.prepare(`SELECT * FROM salas WHERE sala=?`).bind(String(cod || '').toUpperCase().slice(0, 5)).first();
 }
@@ -342,7 +362,7 @@ export default {
         if (!cod) return json({ ok: true, pronto: true });      // teste de vida
         const sala = await abrirSala(env.DB, cod);
         if (!sala) return json({ erro: 'sala não encontrada' }, 404);
-        if (sala.senha && sala.senha !== await resumo(url.searchParams.get('senha') || ''))
+        if (!await autorizado(sala, url.searchParams.get('senha'), env))
           return json({ erro: 'senha errada', trancada: true }, 403);
         let eu = v ? await marcarPresenca(env.DB, sala.sala, v, null) : null;
         if (eu) {
@@ -371,7 +391,7 @@ export default {
 
       const sala = await abrirSala(env.DB, corpo.sala);
       if (!sala) return json({ erro: 'sala não encontrada' }, 404);
-      if (sala.senha && sala.senha !== await resumo(corpo.senha || ''))
+      if (!await autorizado(sala, corpo.senha, env))
         return json({ erro: 'senha errada', trancada: true }, 403);
       let eu = await marcarPresenca(env.DB, sala.sala, v, acao === 'pronto' ? !!corpo.pronto : null);
       repor(eu, sala.recarga * 1000);
@@ -395,6 +415,40 @@ export default {
         }
         const estado = await atualizar(env.DB, sala);
         return json(await retrato(env.DB, sala, estado, eu));
+      }
+
+      if (acao === 'senha') {
+        const souDono = sala.dono === v;
+        const comSistema = sala.sistema && env.CHAVE_SISTEMA && corpo.senha === env.CHAVE_SISTEMA;
+        if (!souDono && !comSistema) return json({ erro: 'só o dono da sala muda a senha' }, 403);
+        const agora = Date.now();
+        const nova = await resumo(String(corpo.nova || '').slice(0, 32));
+        const versao = (sala.chave || 1) + 1;
+        const permitirSistema = corpo.sistema === undefined ? sala.sistema : (corpo.sistema ? 1 : 0);
+        await env.DB.batch([
+          env.DB.prepare(`UPDATE chaves SET ate=? WHERE sala=? AND versao=?`)
+            .bind(agora, sala.sala, sala.chave || 1),
+          env.DB.prepare(`INSERT INTO chaves (sala,versao,resumo,desde,ate,autor)
+            VALUES (?,?,?,?,NULL,?)`).bind(sala.sala, versao, nova, agora, v),
+          env.DB.prepare(`UPDATE salas SET senha=?, chave=?, sistema=? WHERE sala=?`)
+            .bind(nova, versao, permitirSistema, sala.sala)
+        ]);
+        sala.senha = nova; sala.chave = versao; sala.sistema = permitirSistema;
+        const estado = await atualizar(env.DB, sala);
+        const r = await retrato(env.DB, sala, estado, eu);
+        r.chaveNova = versao;
+        return json(r);
+      }
+
+      if (acao === 'chaveiro') {
+        if (sala.dono !== v) return json({ erro: 'só o dono vê o chaveiro' }, 403);
+        const h = await env.DB.prepare(
+          `SELECT versao, desde, ate, autor FROM chaves WHERE sala=? ORDER BY versao`)
+          .bind(sala.sala).all();
+        const p = await env.DB.prepare(
+          `SELECT partida, fim, chave FROM partidas WHERE sala=? ORDER BY partida`)
+          .bind(sala.sala).all();
+        return json({ chaveiro: h.results, partidas: p.results });
       }
 
       if (acao === 'marcar') {
