@@ -121,13 +121,28 @@ function contar(cor) {
 
 
 // ---------- persistência ----------
+const ESQUEMA = 3;   // subir este número refaz as tabelas
+
 async function tabelas(db) {
+  await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
+  const v = await db.prepare(`SELECT valor FROM meta WHERE chave='esquema'`).first();
+  if (v && Number(v.valor) === ESQUEMA) return;
+  // versões antigas ficam para trás: nada aqui vale mais do que a coerência
+  await db.batch([
+    db.prepare(`DROP TABLE IF EXISTS favo`),
+    db.prepare(`DROP TABLE IF EXISTS jogadores`),
+    db.prepare(`DROP TABLE IF EXISTS partidas`),
+    db.prepare(`DROP TABLE IF EXISTS salas`),
+    db.prepare(`DROP TABLE IF EXISTS presencas`)
+  ]);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS salas (
       sala TEXT PRIMARY KEY, dono TEXT NOT NULL, criada INTEGER NOT NULL,
       ciclo INTEGER NOT NULL, grupos INTEGER NOT NULL, recarga INTEGER NOT NULL,
       fase TEXT NOT NULL, estado TEXT NOT NULL, t INTEGER NOT NULL,
-      partida INTEGER NOT NULL DEFAULT 1, parado INTEGER NOT NULL DEFAULT 0)`),
+      partida INTEGER NOT NULL DEFAULT 1, parado INTEGER NOT NULL DEFAULT 0,
+      visivel INTEGER NOT NULL DEFAULT 1, senha TEXT NOT NULL DEFAULT '',
+      nome TEXT NOT NULL DEFAULT '')`),
     db.prepare(`CREATE TABLE IF NOT EXISTS presencas (
       sala TEXT NOT NULL, v TEXT NOT NULL, visto INTEGER NOT NULL,
       pronto INTEGER NOT NULL DEFAULT 0, cor INTEGER NOT NULL DEFAULT 0,
@@ -137,6 +152,15 @@ async function tabelas(db) {
       sala TEXT NOT NULL, partida INTEGER NOT NULL, fim INTEGER NOT NULL,
       tabela TEXT NOT NULL, PRIMARY KEY (sala, partida))`)
   ]);
+  await db.prepare(`INSERT OR REPLACE INTO meta (chave,valor) VALUES ('esquema',?)`)
+    .bind(String(ESQUEMA)).run();
+}
+
+// ---------- senha ----------
+async function resumo(txt) {
+  if (!txt) return '';
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('colmeia:' + txt));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 32);
 }
 
 const ALFA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // sem O/0 nem I/1
@@ -155,19 +179,42 @@ async function criarSala(db, dono, cfg) {
   const ciclo = limitar(cfg.ciclo, LIMITES.ciclo, 60);
   const grupos = limitar(cfg.grupos, LIMITES.grupos, 4);
   const recarga = limitar(cfg.recarga, LIMITES.recarga, 9);
+  const visivel = cfg.visivel === false ? 0 : 1;
+  const senha = await resumo(String(cfg.senha || '').slice(0, 32));
+  const nome = String(cfg.nome || '').slice(0, 24);
   const agora = Date.now();
   const s = semear(1, grupos);
+  let ultimo = null;
   for (let tentativa = 0; tentativa < 5; tentativa++) {
     const sala = codigo();
     try {
       await db.prepare(`INSERT INTO salas
-        (sala,dono,criada,ciclo,grupos,recarga,fase,estado,t,partida,parado)
-        VALUES (?,?,?,?,?,?,'espera',?,?,1,0)`)
-        .bind(sala, dono, agora, ciclo, grupos, recarga, serializar(s.cor, s.proa), agora).run();
+        (sala,dono,criada,ciclo,grupos,recarga,fase,estado,t,partida,parado,visivel,senha,nome)
+        VALUES (?,?,?,?,?,?,'espera',?,?,1,0,?,?,?)`)
+        .bind(sala, dono, agora, ciclo, grupos, recarga, serializar(s.cor, s.proa), agora,
+              visivel, senha, nome).run();
       return sala;
-    } catch (e) { /* código repetido: tenta outro */ }
+    } catch (e) { ultimo = e; }
   }
-  throw new Error('não foi possível criar sala');
+  throw new Error('não foi possível criar sala: ' + String(ultimo).slice(0, 120));
+}
+
+// ---------- radar: salas abertas ----------
+async function radar(db) {
+  const agora = Date.now();
+  const r = await db.prepare(
+    `SELECT s.sala, s.fase, s.ciclo, s.grupos, s.recarga, s.criada, s.nome,
+            (s.senha <> '') AS trancada,
+            (SELECT COUNT(*) FROM presencas p WHERE p.sala=s.sala AND p.visto > ?) AS gente
+     FROM salas s
+     WHERE s.visivel=1 AND s.criada > ?
+     ORDER BY gente DESC, s.criada DESC LIMIT 24`)
+    .bind(agora - PRESENTE_MS, agora - 1000 * 60 * 60 * 12).all();
+  return r.results.map(x => ({
+    sala: x.sala, fase: x.fase, gente: x.gente | 0, trancada: !!x.trancada, nome: x.nome || '',
+    config: { ciclo: x.ciclo, grupos: x.grupos, recarga: x.recarga },
+    idade: Math.round((agora - x.criada) / 60000)
+  }));
 }
 
 async function marcarPresenca(db, sala, v, pronto) {
@@ -232,6 +279,9 @@ async function retrato(db, sala, estado, eu) {
     .bind(sala.sala).first();
   return {
     sala: sala.sala,
+    nome: sala.nome || '',
+    visivel: !!sala.visivel,
+    trancada: !!sala.senha,
     fase: sala.fase,
     dono: sala.dono === (eu && eu.v),
     config: { ciclo: sala.ciclo, grupos: sala.grupos, recarga: sala.recarga },
@@ -286,11 +336,14 @@ export default {
 
       // ---- consulta ----
       if (request.method === 'GET') {
+        if (url.searchParams.get('radar')) return json({ salas: await radar(env.DB) });
         const cod = url.searchParams.get('sala');
         const v = (url.searchParams.get('v') || '').slice(0, 24);
         if (!cod) return json({ ok: true, pronto: true });      // teste de vida
         const sala = await abrirSala(env.DB, cod);
         if (!sala) return json({ erro: 'sala não encontrada' }, 404);
+        if (sala.senha && sala.senha !== await resumo(url.searchParams.get('senha') || ''))
+          return json({ erro: 'senha errada', trancada: true }, 403);
         let eu = v ? await marcarPresenca(env.DB, sala.sala, v, null) : null;
         if (eu) {
           repor(eu, sala.recarga * 1000);
@@ -318,6 +371,8 @@ export default {
 
       const sala = await abrirSala(env.DB, corpo.sala);
       if (!sala) return json({ erro: 'sala não encontrada' }, 404);
+      if (sala.senha && sala.senha !== await resumo(corpo.senha || ''))
+        return json({ erro: 'senha errada', trancada: true }, 403);
       let eu = await marcarPresenca(env.DB, sala.sala, v, acao === 'pronto' ? !!corpo.pronto : null);
       repor(eu, sala.recarga * 1000);
 
