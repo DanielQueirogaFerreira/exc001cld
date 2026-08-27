@@ -7,12 +7,14 @@
 
 const RAIO = 8;
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
-const CICLO_MS = 60000;        // um ciclo por minuto, igual para toda a gente
 const POLEN_MAX = 32;
-const RECARGA_MS = 9000;
 const CUSTO_NOVO = 2, CUSTO_PROA = 1;
-const GRUPOS = 6;
 const CORES = 8;
+const LIMITES = {
+  ciclo:   [2, 300],      // segundos
+  recarga: [1, 60],
+  grupos:  [2, 8]
+};
 const INERCIA = 1.55, FRENTE = 1.0, FLANCO = 0.55, LIMIAR = 0.5;
 const MAX_CICLOS_POR_PEDIDO = 30;
 const VAZIO = '.';
@@ -49,7 +51,7 @@ function desserializar(s) {
 }
 
 // ---------- semear ----------
-function semear(partida) {
+function semear(partida, GRUPOS) {
   const cor = new Int8Array(N).fill(-1), proa = new Uint8Array(N);
   const passo = CORES / GRUPOS;
   let semente = (partida * 2654435761) % 2147483647;
@@ -65,7 +67,8 @@ function semear(partida) {
     const alvo = (Math.round((ang + Math.PI) / (Math.PI / 3)) % 6 + 6) % 6;
     const fila = [inicio], vistos = new Set([inicio]);
     let n = 0;
-    while (fila.length && n < 8) {
+    const porGrupo = Math.max(4, Math.round(48 / GRUPOS));
+    while (fila.length && n < porGrupo) {
       const i = fila.shift();
       cor[i] = c; proa[i] = alvo; n++;
       for (let d = 0; d < 6; d++) {
@@ -116,49 +119,90 @@ function contar(cor) {
   return Object.keys(c).map(k => ({ c: +k, n: c[k] })).sort((a, b) => b.n - a.n);
 }
 
+
 // ---------- persistência ----------
 async function tabelas(db) {
   await db.batch([
-    db.prepare(`CREATE TABLE IF NOT EXISTS favo (
-      id INTEGER PRIMARY KEY, partida INTEGER NOT NULL, estado TEXT NOT NULL,
-      t INTEGER NOT NULL, versao INTEGER NOT NULL, parado INTEGER NOT NULL DEFAULT 0)`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS jogadores (
-      v TEXT PRIMARY KEY, polen REAL NOT NULL, t INTEGER NOT NULL,
-      marcas INTEGER NOT NULL DEFAULT 0, cor INTEGER NOT NULL DEFAULT 0)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS salas (
+      sala TEXT PRIMARY KEY, dono TEXT NOT NULL, criada INTEGER NOT NULL,
+      ciclo INTEGER NOT NULL, grupos INTEGER NOT NULL, recarga INTEGER NOT NULL,
+      fase TEXT NOT NULL, estado TEXT NOT NULL, t INTEGER NOT NULL,
+      partida INTEGER NOT NULL DEFAULT 1, parado INTEGER NOT NULL DEFAULT 0)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS presencas (
+      sala TEXT NOT NULL, v TEXT NOT NULL, visto INTEGER NOT NULL,
+      pronto INTEGER NOT NULL DEFAULT 0, cor INTEGER NOT NULL DEFAULT 0,
+      polen REAL NOT NULL DEFAULT 32, tpolen INTEGER NOT NULL,
+      marcas INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (sala, v))`),
     db.prepare(`CREATE TABLE IF NOT EXISTS partidas (
-      partida INTEGER PRIMARY KEY, fim INTEGER NOT NULL, tabela TEXT NOT NULL)`)
+      sala TEXT NOT NULL, partida INTEGER NOT NULL, fim INTEGER NOT NULL,
+      tabela TEXT NOT NULL, PRIMARY KEY (sala, partida))`)
   ]);
 }
 
-async function carregar(db) {
-  let r = await db.prepare(`SELECT * FROM favo WHERE id=1`).first();
-  if (!r) {
-    const s = semear(1);
-    r = { id: 1, partida: 1, estado: serializar(s.cor, s.proa), t: Date.now(), versao: 1, parado: 0 };
-    await db.prepare(`INSERT INTO favo (id,partida,estado,t,versao,parado) VALUES (1,?,?,?,?,0)`)
-      .bind(r.partida, r.estado, r.t, r.versao).run();
+const ALFA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // sem O/0 nem I/1
+function codigo() {
+  let s = '';
+  for (let i = 0; i < 5; i++) s += ALFA[Math.floor(Math.random() * ALFA.length)];
+  return s;
+}
+const limitar = (v, [min, max], pad) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : pad;
+};
+const PRESENTE_MS = 40000;      // considera-se presente quem deu sinal há menos disto
+
+async function criarSala(db, dono, cfg) {
+  const ciclo = limitar(cfg.ciclo, LIMITES.ciclo, 60);
+  const grupos = limitar(cfg.grupos, LIMITES.grupos, 4);
+  const recarga = limitar(cfg.recarga, LIMITES.recarga, 9);
+  const agora = Date.now();
+  const s = semear(1, grupos);
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    const sala = codigo();
+    try {
+      await db.prepare(`INSERT INTO salas
+        (sala,dono,criada,ciclo,grupos,recarga,fase,estado,t,partida,parado)
+        VALUES (?,?,?,?,?,?,'espera',?,?,1,0)`)
+        .bind(sala, dono, agora, ciclo, grupos, recarga, serializar(s.cor, s.proa), agora).run();
+      return sala;
+    } catch (e) { /* código repetido: tenta outro */ }
   }
-  return r;
+  throw new Error('não foi possível criar sala');
 }
 
-// avança a simulação até ao presente
-async function atualizar(db, linha) {
-  let { cor, proa } = desserializar(linha.estado);
-  let t = linha.t, partida = linha.partida, parado = linha.parado, mexeu = false;
+async function marcarPresenca(db, sala, v, pronto) {
+  const agora = Date.now();
+  const p = await db.prepare(`SELECT * FROM presencas WHERE sala=? AND v=?`).bind(sala, v).first();
+  if (!p) {
+    await db.prepare(`INSERT INTO presencas (sala,v,visto,pronto,polen,tpolen) VALUES (?,?,?,?,?,?)`)
+      .bind(sala, v, agora, pronto ? 1 : 0, POLEN_MAX, agora).run();
+    return { sala, v, visto: agora, pronto: pronto ? 1 : 0, polen: POLEN_MAX, tpolen: agora, marcas: 0, cor: 0 };
+  }
+  const np = pronto === null ? p.pronto : (pronto ? 1 : 0);
+  await db.prepare(`UPDATE presencas SET visto=?, pronto=? WHERE sala=? AND v=?`)
+    .bind(agora, np, sala, v).run();
+  p.visto = agora; p.pronto = np;
+  return p;
+}
+
+// avança os ciclos até ao presente, só se a sala estiver a jogar
+async function atualizar(db, sala) {
+  let { cor, proa } = desserializar(sala.estado);
+  let t = sala.t, partida = sala.partida, parado = sala.parado, mexeu = false;
+  if (sala.fase !== 'a jogar') return { cor, proa, t, partida, parado };
+  const CICLO_MS = sala.ciclo * 1000;
   const agora = Date.now();
   let voltas = Math.floor((agora - t) / CICLO_MS);
   if (voltas > MAX_CICLOS_POR_PEDIDO) {
     t = agora - CICLO_MS * MAX_CICLOS_POR_PEDIDO;
     voltas = MAX_CICLOS_POR_PEDIDO;
   }
-
   for (let k = 0; k < voltas; k++) {
     if (parado) {
-      const tabela = JSON.stringify(contar(cor));
-      await db.prepare(`INSERT OR REPLACE INTO partidas (partida,fim,tabela) VALUES (?,?,?)`)
-        .bind(partida, t, tabela).run();
+      await db.prepare(`INSERT OR REPLACE INTO partidas (sala,partida,fim,tabela) VALUES (?,?,?,?)`)
+        .bind(sala.sala, partida, t, JSON.stringify(contar(cor))).run();
       partida += 1;
-      const s = semear(partida);
+      const s = semear(partida, sala.grupos);
       cor = s.cor; proa = s.proa; parado = 0;
     } else {
       const r = ciclo(cor, proa);
@@ -168,45 +212,50 @@ async function atualizar(db, linha) {
     t += CICLO_MS; mexeu = true;
   }
   if (mexeu) {
-    await db.prepare(`UPDATE favo SET partida=?, estado=?, t=?, versao=versao+1, parado=? WHERE id=1`)
-      .bind(partida, serializar(cor, proa), t, parado).run();
+    await db.prepare(`UPDATE salas SET estado=?, t=?, partida=?, parado=? WHERE sala=?`)
+      .bind(serializar(cor, proa), t, partida, parado, sala.sala).run();
+    sala.t = t; sala.partida = partida; sala.parado = parado;
   }
   return { cor, proa, t, partida, parado };
 }
 
-async function jogador(db, v) {
+async function retrato(db, sala, estado, eu) {
   const agora = Date.now();
-  let j = await db.prepare(`SELECT * FROM jogadores WHERE v=?`).bind(v).first();
-  if (!j) {
-    j = { v, polen: POLEN_MAX, t: agora, marcas: 0, cor: 0 };
-    await db.prepare(`INSERT INTO jogadores (v,polen,t,marcas,cor) VALUES (?,?,?,0,0)`)
-      .bind(v, j.polen, j.t).run();
-    return j;
-  }
-  j.polen = Math.min(POLEN_MAX, j.polen + (agora - j.t) / RECARGA_MS);
-  j.t = agora;
-  return j;
-}
-
-async function resposta(db, estado, j) {
-  const r = await db.batch([
-    db.prepare(`SELECT COUNT(*) AS n FROM jogadores`),
-    db.prepare(`SELECT partida, tabela, fim FROM partidas ORDER BY partida DESC LIMIT 1`)
-  ]);
+  const pres = await db.prepare(
+    `SELECT v, pronto, cor, marcas, visto FROM presencas WHERE sala=? AND visto > ?`)
+    .bind(sala.sala, agora - PRESENTE_MS).all();
+  const gente = pres.results.map(p => ({
+    v: p.v, pronto: !!p.pronto, cor: p.cor, marcas: p.marcas, eu: p.v === (eu && eu.v)
+  }));
+  const ultima = await db.prepare(
+    `SELECT partida, tabela, fim FROM partidas WHERE sala=? ORDER BY partida DESC LIMIT 1`)
+    .bind(sala.sala).first();
   return {
+    sala: sala.sala,
+    fase: sala.fase,
+    dono: sala.dono === (eu && eu.v),
+    config: { ciclo: sala.ciclo, grupos: sala.grupos, recarga: sala.recarga },
     estado: serializar(estado.cor, estado.proa),
     partida: estado.partida,
     parado: !!estado.parado,
-    proximo: estado.t + CICLO_MS - Date.now(),
-    ciclo: CICLO_MS,
+    proximo: sala.fase === 'a jogar' ? (estado.t + sala.ciclo * 1000 - agora) : null,
+    ciclo: sala.ciclo * 1000,
     tabela: contar(estado.cor),
-    maos: ((r[0].results[0] || {}).n) | 0,
-    ultimaPartida: (r[1].results[0] || null),
-    polen: j ? Math.floor(j.polen) : null,
+    gente,
+    maos: gente.length,
+    ultimaPartida: ultima || null,
+    polen: eu ? Math.floor(eu.polen) : null,
     polenMax: POLEN_MAX,
-    recarga: RECARGA_MS,
+    recarga: sala.recarga * 1000,
     custo: { novo: CUSTO_NOVO, proa: CUSTO_PROA }
   };
+}
+
+function repor(eu, recargaMs) {
+  const agora = Date.now();
+  eu.polen = Math.min(POLEN_MAX, eu.polen + (agora - eu.tpolen) / recargaMs);
+  eu.tpolen = agora;
+  return eu;
 }
 
 const json = (d, s = 200) => new Response(JSON.stringify(d), {
@@ -220,6 +269,10 @@ const json = (d, s = 200) => new Response(JSON.stringify(d), {
   }
 });
 
+async function abrirSala(db, cod) {
+  return db.prepare(`SELECT * FROM salas WHERE sala=?`).bind(String(cod || '').toUpperCase().slice(0, 5)).first();
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -230,55 +283,98 @@ export default {
 
     try {
       await tabelas(env.DB);
-      const linha = await carregar(env.DB);
-      const estado = await atualizar(env.DB, linha);
 
+      // ---- consulta ----
       if (request.method === 'GET') {
-        const v = url.searchParams.get('v');
-        let j = null;
-        if (v) {
-          j = await jogador(env.DB, v.slice(0, 24));
-          await env.DB.prepare(`UPDATE jogadores SET polen=?, t=? WHERE v=?`)
-            .bind(j.polen, j.t, j.v).run();
+        const cod = url.searchParams.get('sala');
+        const v = (url.searchParams.get('v') || '').slice(0, 24);
+        if (!cod) return json({ ok: true, pronto: true });      // teste de vida
+        const sala = await abrirSala(env.DB, cod);
+        if (!sala) return json({ erro: 'sala não encontrada' }, 404);
+        let eu = v ? await marcarPresenca(env.DB, sala.sala, v, null) : null;
+        if (eu) {
+          repor(eu, sala.recarga * 1000);
+          await env.DB.prepare(`UPDATE presencas SET polen=?, tpolen=? WHERE sala=? AND v=?`)
+            .bind(eu.polen, eu.tpolen, sala.sala, v).run();
         }
-        return json(await resposta(env.DB, estado, j));
+        const estado = await atualizar(env.DB, sala);
+        return json(await retrato(env.DB, sala, estado, eu));
       }
 
-      if (request.method === 'POST') {
-        const corpo = await request.json().catch(() => null);
-        if (!corpo || !Array.isArray(corpo.marks)) return json({ erro: 'corpo inválido' }, 400);
-        const v = String(corpo.id || '').slice(0, 24) || 'anon';
-        const j = await jogador(env.DB, v);
+      // ---- ações ----
+      const corpo = await request.json().catch(() => null);
+      if (!corpo) return json({ erro: 'corpo inválido' }, 400);
+      const v = String(corpo.id || '').slice(0, 24) || 'anon';
+      const acao = corpo.acao || 'marcar';
 
+      if (acao === 'criar') {
+        const sala = await criarSala(env.DB, v, corpo.config || {});
+        await marcarPresenca(env.DB, sala, v, false);
+        const linha = await abrirSala(env.DB, sala);
+        const eu = await marcarPresenca(env.DB, sala, v, null);
+        const estado = await atualizar(env.DB, linha);
+        return json(await retrato(env.DB, linha, estado, eu));
+      }
+
+      const sala = await abrirSala(env.DB, corpo.sala);
+      if (!sala) return json({ erro: 'sala não encontrada' }, 404);
+      let eu = await marcarPresenca(env.DB, sala.sala, v, acao === 'pronto' ? !!corpo.pronto : null);
+      repor(eu, sala.recarga * 1000);
+
+      if (acao === 'pronto' || acao === 'comecar') {
+        if (acao === 'comecar' && sala.fase === 'espera') {
+          await env.DB.prepare(`UPDATE salas SET fase='a jogar', t=? WHERE sala=?`)
+            .bind(Date.now(), sala.sala).run();
+          sala.fase = 'a jogar'; sala.t = Date.now();
+        } else if (sala.fase === 'espera') {
+          // toda a gente presente e pronta faz o jogo arrancar sozinho
+          const agora = Date.now();
+          const p = await env.DB.prepare(
+            `SELECT COUNT(*) AS n, SUM(pronto) AS p FROM presencas WHERE sala=? AND visto > ?`)
+            .bind(sala.sala, agora - PRESENTE_MS).first();
+          if ((p.n | 0) >= 1 && (p.p | 0) === (p.n | 0)) {
+            await env.DB.prepare(`UPDATE salas SET fase='a jogar', t=? WHERE sala=?`)
+              .bind(agora, sala.sala).run();
+            sala.fase = 'a jogar'; sala.t = agora;
+          }
+        }
+        const estado = await atualizar(env.DB, sala);
+        return json(await retrato(env.DB, sala, estado, eu));
+      }
+
+      if (acao === 'marcar') {
+        const estado = await atualizar(env.DB, sala);
+        if (sala.fase !== 'a jogar') {
+          return json(await retrato(env.DB, sala, estado, eu));
+        }
         const { cor, proa } = estado;
-        let gastou = 0, aplicadas = 0, minhaCor = j.cor;
-        for (const m of corpo.marks.slice(0, 24)) {
+        let gastou = 0, aplicadas = 0, minhaCor = eu.cor;
+        for (const m of (corpo.marks || []).slice(0, 24)) {
           const i = m.i | 0, c = m.c | 0, d = ((m.d | 0) % 6 + 6) % 6;
           if (i < 0 || i >= N || c < 0 || c >= CORES) continue;
           const custo = cor[i] === c ? CUSTO_PROA : CUSTO_NOVO;
-          if (j.polen - gastou < custo) break;
+          if (eu.polen - gastou < custo) break;
           gastou += custo; aplicadas++; minhaCor = c;
           cor[i] = c; proa[i] = d;
         }
         if (aplicadas) {
-          j.polen -= gastou;
-          estado.parado = 0;                     // uma mão humana reabre o jogo
+          eu.polen -= gastou; estado.parado = 0;
           await env.DB.batch([
-            env.DB.prepare(`UPDATE favo SET estado=?, versao=versao+1, parado=0 WHERE id=1`)
-              .bind(serializar(cor, proa)),
-            env.DB.prepare(`UPDATE jogadores SET polen=?, t=?, marcas=marcas+?, cor=? WHERE v=?`)
-              .bind(j.polen, j.t, aplicadas, minhaCor, v)
+            env.DB.prepare(`UPDATE salas SET estado=?, parado=0 WHERE sala=?`)
+              .bind(serializar(cor, proa), sala.sala),
+            env.DB.prepare(`UPDATE presencas SET polen=?, tpolen=?, marcas=marcas+?, cor=? WHERE sala=? AND v=?`)
+              .bind(eu.polen, eu.tpolen, aplicadas, minhaCor, sala.sala, v)
           ]);
         } else {
-          await env.DB.prepare(`UPDATE jogadores SET polen=?, t=? WHERE v=?`)
-            .bind(j.polen, j.t, v).run();
+          await env.DB.prepare(`UPDATE presencas SET polen=?, tpolen=? WHERE sala=? AND v=?`)
+            .bind(eu.polen, eu.tpolen, sala.sala, v).run();
         }
-        const r = await resposta(env.DB, estado, j);
+        const r = await retrato(env.DB, sala, estado, eu);
         r.aplicadas = aplicadas;
         return json(r);
       }
 
-      return json({ erro: 'método não permitido' }, 405);
+      return json({ erro: 'ação desconhecida' }, 400);
     } catch (e) {
       return json({ erro: 'falha no favo', detalhe: String(e).slice(0, 300) }, 500);
     }
