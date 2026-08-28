@@ -127,7 +127,9 @@ async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
   const v = await db.prepare(`SELECT valor FROM meta WHERE chave='esquema'`).first();
   if (v && Number(v.valor) === ESQUEMA) return;
-  // versões antigas ficam para trás: nada aqui vale mais do que a coerência
+  // Só as tabelas de jogo se refazem quando o esquema muda: são estado de partida,
+  // recriável. Contas, convites, inspeções e catálogo NUNCA se apagam — são trabalho
+  // de pessoas, e já se perderam uma vez por minha causa.
   await db.batch([
     db.prepare(`DROP TABLE IF EXISTS favo`),
     db.prepare(`DROP TABLE IF EXISTS jogadores`),
@@ -137,12 +139,7 @@ async function tabelas(db) {
     db.prepare(`DROP TABLE IF EXISTS chaves`),
     db.prepare(`DROP TABLE IF EXISTS expedicoes`),
     db.prepare(`DROP TABLE IF EXISTS exp_membros`),
-    db.prepare(`DROP TABLE IF EXISTS exp_achados`),
-    db.prepare(`DROP TABLE IF EXISTS contas`),
-    db.prepare(`DROP TABLE IF EXISTS sessoes`),
-    db.prepare(`DROP TABLE IF EXISTS inspecoes`),
-    db.prepare(`DROP TABLE IF EXISTS convites`),
-    db.prepare(`DROP TABLE IF EXISTS catalogo`)
+    db.prepare(`DROP TABLE IF EXISTS exp_achados`)
   ]);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS salas (
