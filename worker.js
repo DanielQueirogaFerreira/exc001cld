@@ -536,7 +536,7 @@ async function derivar(senha, sal) {
   const enc = new TextEncoder();
   const base = await crypto.subtle.importKey('raw', enc.encode(senha), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: enc.encode(sal), iterations: 120000, hash: 'SHA-256' }, base, 256);
+    { name: 'PBKDF2', salt: enc.encode(sal), iterations: 30000, hash: 'SHA-256' }, base, 256);
   return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 const aleatorio = (n) => {
@@ -554,7 +554,9 @@ async function quemE(db, tok) {
 }
 
 async function contas(request, env, url) {
-  await tabelas(env.DB);
+  if (!env.DB) return json({ erro: 'sem base de dados ligada' }, 503);
+  try { await tabelas(env.DB); }
+  catch (e) { return json({ erro: 'falha ao preparar as tabelas', detalhe: String((e && e.message) || e).slice(0, 300) }, 500); }
   const corpo = request.method === 'POST' ? await request.json().catch(() => null) : {};
   const tok = (corpo && corpo.tok) || url.searchParams.get('tok') || '';
   const acao = (corpo && corpo.acao) || url.searchParams.get('acao') || 'eu';
@@ -626,7 +628,9 @@ async function contas(request, env, url) {
 }
 
 async function inspecoes(request, env, url) {
-  await tabelas(env.DB);
+  if (!env.DB) return json({ erro: 'sem base de dados ligada' }, 503);
+  try { await tabelas(env.DB); }
+  catch (e) { return json({ erro: 'falha ao preparar as tabelas', detalhe: String((e && e.message) || e).slice(0, 300) }, 500); }
   const corpo = request.method === 'POST' ? await request.json().catch(() => null) : {};
   const tok = (corpo && corpo.tok) || url.searchParams.get('tok') || '';
   const eu = await quemE(env.DB, tok);
