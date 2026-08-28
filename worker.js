@@ -678,10 +678,28 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return new Response('Não encontrado', { status: 404 });
     if (request.method === 'OPTIONS') return json({ ok: true });
-    if (url.pathname === '/api/vida') return json({
-      ok: true, base: !!env.DB,
-      rotas: ['/api/vida', '/api/colmeia', '/api/cosmos', '/api/conta', '/api/inspecao']
-    });
+    if (url.pathname === '/api/vida') {
+      // quantas contas existem, sem revelar quem são: serve para saber
+      // se a primeira já foi criada e se o esquema está de pé
+      let contasN = null, inspN = null, esquema = null, aviso = null;
+      if (env.DB) {
+        try {
+          await tabelas(env.DB);
+          const r = await env.DB.batch([
+            env.DB.prepare(`SELECT COUNT(*) AS n FROM contas`),
+            env.DB.prepare(`SELECT COUNT(*) AS n FROM inspecoes`),
+            env.DB.prepare(`SELECT valor FROM meta WHERE chave='esquema'`)
+          ]);
+          contasN = (r[0].results[0] || {}).n | 0;
+          inspN = (r[1].results[0] || {}).n | 0;
+          esquema = ((r[2].results[0] || {}).valor) || null;
+        } catch (e) { aviso = String((e && e.message) || e).slice(0, 300); }
+      }
+      return json({
+        ok: true, base: !!env.DB, esquema, contas: contasN, inspecoes: inspN, aviso,
+        rotas: ['/api/vida', '/api/colmeia', '/api/cosmos', '/api/conta', '/api/inspecao']
+      });
+    }
     try {
       if (url.pathname === '/api/cosmos') return await cosmos(request, env, url);
       if (url.pathname === '/api/conta') return await contas(request, env, url);
