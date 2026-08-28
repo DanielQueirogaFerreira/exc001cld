@@ -148,6 +148,17 @@
         <span class="tags">Influência direcional · salas com código · solo ou em grupo</span>
       </span>
     </a>
+
+    <a class="item" target="_top" data-nav="07-cosmografo-1.html" data-key="07" href="07-cosmografo-1.html">
+      <span class="num">07</span>
+      <span>
+        <span class="name">Cosmógrafo</span>
+        <span class="desc">Cada pedaço da Terra corresponde a um lugar no Grupo Local, sempre o mesmo.
+          Ande e atravesse regiões; pare e navegue à distância. O que é observado e o que é gerado
+          vêm assinalados, e a sua posição nunca sai do aparelho.</span>
+        <span class="tags">Geolocalização · mapeamento determinístico · DC e DS assinalados</span>
+      </span>
+    </a>
   </nav>
 
   <footer>EXC001CLD · ambiente de teste · três ficheiros, zero dependências</footer>
@@ -155,7 +166,7 @@
 
   <div id="stage" hidden>
     <iframe id="frame" title="Ambiente EXC"
-      allow="fullscreen; gyroscope; accelerometer; magnetometer; microphone; autoplay"
+      allow="fullscreen; gyroscope; accelerometer; magnetometer; microphone; autoplay; geolocation"
       allowfullscreen></iframe>
     <div class="bar" role="group" aria-label="Navegação entre ambientes">
       <button data-go="home" title="Voltar ao índice" aria-label="Voltar ao índice">←</button>
@@ -166,6 +177,7 @@
       <button data-go="04" title="Prumo">04</button>
       <button data-go="05" title="Escuta">05</button>
       <button data-go="06" title="Colmeia">06</button>
+      <button data-go="07" title="Cosmógrafo">07</button>
       <span class="sep"></span>
       <button class="fsbtn" id="bZen2" aria-pressed="false" aria-label="Imersão" title="Imersão: esconder números"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button>
       <button class="fsbtn" id="bFs2" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
@@ -252,7 +264,7 @@
     // ---------- painel: abre cada ambiente dentro do mesmo documento ----------
     // é isto que faz o ecrã inteiro sobreviver à troca: nunca há navegação
     (function(){
-      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-6.html','04':'04-prumo-6.html','05':'05-escuta-2.html','06':'06-colmeia-13.html'};
+      const MAP={'01':'01-protoplasma-4.html','02':'02-cordame-2.html','03':'03-semente-6.html','04':'04-prumo-6.html','05':'05-escuta-2.html','06':'06-colmeia-13.html','07':'07-cosmografo-1.html'};
       const stage=document.getElementById('stage'), frame=document.getElementById('frame');
       const bar=document.querySelector('.bar');
       let cur=null;
@@ -326,7 +338,7 @@
     'html.zen #excV{opacity:0}';
   document.head.appendChild(st);
   const e=document.createElement('div');
-  e.id='excV'; e.textContent='EXC001CLD · ÍNDICE v1';
+  e.id='excV'; e.textContent='EXC001CLD · ÍNDICE v2';
   const palco=document.getElementById('stage');
   if(palco && !palco.hidden) e.style.display='none';
   e.setAttribute('aria-label','versão deste ambiente');
