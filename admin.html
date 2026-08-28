@@ -116,7 +116,7 @@
     </div>
     <p class="erro" id="erro"></p>
     <p style="font-size:10px;margin-top:14px">A senha nunca é guardada: fica só a derivação
-      PBKDF2 com 120 mil iterações e sal próprio. A sessão dura duas semanas.</p>
+      PBKDF2 com 30 mil iterações e sal próprio. A sessão dura duas semanas.</p>
   </div>
 </section>
 
@@ -183,8 +183,8 @@ try{ tok=localStorage.getItem('exc_tok')||''; }catch(e){}
 async function api(rota,corpo){
   const r=await fetch('api/'+rota,{method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify(Object.assign({tok},corpo))});
-  const d=await r.json();
-  if(d.erro) throw new Error(d.erro);
+  const d=await r.json().catch(()=>({erro:'resposta ilegível do servidor'}));
+  if(d.erro) throw new Error(d.erro+(d.detalhe?' — '+d.detalhe:''));
   return d;
 }
 function guardarTok(t){ tok=t||''; try{ t?localStorage.setItem('exc_tok',t):localStorage.removeItem('exc_tok'); }catch(e){} }
@@ -375,7 +375,7 @@ async function carregarContas(){
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42)}';
   document.head.appendChild(st);
   const e=document.createElement('div');
-  e.id='excV'; e.textContent='ADMIN v2';
+  e.id='excV'; e.textContent='ADMIN v3';
   document.body.appendChild(e);
 })();
 </script>
