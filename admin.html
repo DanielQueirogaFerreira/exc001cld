@@ -216,9 +216,14 @@
     <div class="caixa">
       <label for="convPapel">papel</label>
       <select id="convPapel">
-        <option value="inspetor">inspetor</option>
-        <option value="administrador">administrador</option>
+        <option value="navegante">navegante — explora e regista os seus achados</option>
+        <option value="inspetor" selected>inspetor — pode inspecionar lugares</option>
+        <option value="administrador">administrador — gere contas e convites</option>
       </select>
+      <label style="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:11px;color:var(--dim);text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="convDar" style="width:16px;height:16px;accent-color:#6BE7A8">
+        quem usar este convite pode, por sua vez, convidar
+      </label>
       <label for="convNota">para quem é (nota interna)</label>
       <input id="convNota" maxlength="60" placeholder="ex.: equipa de campo, Marta">
       <div class="linha"><button id="bConvidar">GERAR CONVITE</button></div>
@@ -263,7 +268,12 @@ function mostrarMesa(){
   el('portao').classList.add('oculto');
   el('mesa').classList.remove('oculto');
   el('abaContas').classList.toggle('oculto', eu.papel!=='administrador');
-  el('abaConvites').classList.toggle('oculto', eu.papel!=='administrador');
+  el('abaConvites').classList.toggle('oculto', !(eu.papel==='administrador'||eu.convidar));
+  el('convDar').closest('label').style.display = eu.papel==='administrador' ? '' : 'none';
+  if(eu.papel!=='administrador'){
+    const op=el('convPapel').querySelector('[value=administrador]');
+    if(op) op.remove();
+  }
   pintarQuem();
   abrir('registar');
 }
@@ -407,16 +417,23 @@ async function carregarContas(){
   try{
     const d=await api('conta',{acao:'lista'});
     el('tabelaContas').innerHTML='<table><thead><tr>'+
-      '<th>email</th><th>nome</th><th>papel</th><th>desde</th><th></th></tr></thead><tbody>'+
+      '<th>email</th><th>nome</th><th>papel</th><th>convites</th><th>desde</th><th></th></tr></thead><tbody>'+
       d.contas.map(c=>
       '<tr><td>'+c.email+'</td><td>'+(c.nome||'—')+'</td>'+
       '<td><span class="papel '+(c.papel==='administrador'?'adm':'ins')+'">'+c.papel+'</span></td>'+
+      '<td>'+(c.papel==='administrador'?'<span class="papel adm">sempre</span>':
+        '<button class="leve" data-conv="'+c.email+'" data-v="'+(c.convidar?0:1)+'" style="padding:6px 10px">'+
+        (c.convidar?'convida ✓':'não convida')+'</button>')+'</td>'+
       '<td class="nota">'+new Date(c.criada).toLocaleDateString('pt-PT')+'</td>'+
       '<td>'+(c.email===eu.email?'':
         '<button class="leve" data-papel="'+c.email+'" data-novo="'+
         (c.papel==='administrador'?'inspetor':'administrador')+'" style="padding:6px 10px">'+
         (c.papel==='administrador'?'→ inspetor':'→ admin')+'</button>')+'</td></tr>').join('')+
       '</tbody></table>';
+    document.querySelectorAll('[data-conv]').forEach(b=>b.onclick=async()=>{
+      try{ await api('conta',{acao:'permissao',email:b.dataset.conv,convidar:b.dataset.v==='1'});
+        carregarContas(); }catch(e){}
+    });
     document.querySelectorAll('[data-papel]').forEach(b=>b.onclick=async()=>{
       try{ await api('conta',{acao:'papel',email:b.dataset.papel,papel:b.dataset.novo});
         carregarContas(); }catch(e){}
@@ -436,7 +453,8 @@ function pintarConvites(lista){
   el('tabelaConv').innerHTML='<table><thead><tr><th>código</th><th>papel</th><th>para</th>'+
     '<th>estado</th><th></th></tr></thead><tbody>'+lista.map(c=>
     '<tr><td class="cod">'+c.cod+'</td>'+
-    '<td><span class="papel '+(c.papel==='administrador'?'adm':'ins')+'">'+c.papel+'</span></td>'+
+    '<td><span class="papel '+(c.papel==='administrador'?'adm':'ins')+'">'+c.papel+'</span>'+
+      (c.dar_convites?' <span class="papel ins">convida</span>':'')+'</td>'+
     '<td class="nota">'+(c.nota||'—')+'</td>'+
     '<td class="nota">'+(c.usado?('usado por '+c.usado_por):'por usar')+'</td>'+
     '<td>'+(c.usado?'':'<button class="leve" data-cp="'+c.cod+'" style="padding:6px 10px">COPIAR</button>'+
@@ -452,7 +470,8 @@ function pintarConvites(lista){
 }
 el('bConvidar').onclick=async()=>{
   try{
-    const d=await api('conta',{acao:'convidar',papel:el('convPapel').value,nota:el('convNota').value});
+    const d=await api('conta',{acao:'convidar',papel:el('convPapel').value,
+      nota:el('convNota').value, dar_convites:el('convDar').checked});
     el('convNota').value='';
     pintarConvites(d.convites);
   }catch(e){ el('tabelaConv').innerHTML='<p class="vazio">'+e.message+'</p>'; }
@@ -509,7 +528,7 @@ function pintarCatalogo(lista){
   el('tabelaCat').innerHTML='<p style="font-size:10px">'+lista.length+' corpos em '+
     Object.keys(porTipo).length+' tipos</p><table><thead><tr><th>coordenada</th><th>corpo</th>'+
     '<th>galáxia</th><th>camada</th><th>valor</th><th></th></tr></thead><tbody>'+
-    lista.map(c=>'<tr><td class="cod"><a class="irCoord" href="07-cosmografo-9.html#coord='+
+    lista.map(c=>'<tr><td class="cod"><a class="irCoord" href="07-cosmografo-10.html#coord='+
       encodeURIComponent(c.coord)+'" target="_blank" rel="noopener" title="abrir no Cosmógrafo">'+
       c.coord+'</a></td>'+
     '<td>'+c.nome+'<br><span class="nota">'+c.tipo+'</span></td>'+
@@ -518,7 +537,7 @@ function pintarCatalogo(lista){
     (eu&&eu.papel==='administrador'?'<button class="leve" data-rmc="'+c.coord+'" style="padding:6px 10px">✕</button>':'')+
     '</td></tr>').join('')+'</tbody></table>';
   document.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>
-    open('07-cosmografo-9.html#coord='+encodeURIComponent(b.dataset.ir),'_blank'));
+    open('07-cosmografo-10.html#coord='+encodeURIComponent(b.dataset.ir),'_blank'));
   document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=async()=>{
     try{ pintarCatalogo((await api('catalogo',{acao:'apagar',coord:b.dataset.rmc})).catalogo); }catch(e){}
   });
@@ -549,7 +568,7 @@ function pintarCatalogo(lista){
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42)}';
   document.head.appendChild(st);
   const e=document.createElement('div');
-  e.id='excV'; e.textContent='ADMIN v5';
+  e.id='excV'; e.textContent='ADMIN v6';
   document.body.appendChild(e);
 })();
 </script>
