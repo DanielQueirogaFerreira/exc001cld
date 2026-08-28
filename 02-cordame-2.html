@@ -505,12 +505,46 @@ draw();
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
     'transition:opacity .4s}'+
     '.deck,footer{padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}'+'@media (max-width:560px){.deck,footer{padding-bottom:calc(30px + env(safe-area-inset-bottom,0px))}}'+'.hint,.meta{margin-bottom:2px}'+
-    'html.zen #excV{opacity:0}';
+    'html.zen #excV{opacity:0}'+
+    '#excV[data-desperto="1"]::after{content:" \\25C9";color:#6BE7A8;margin-left:5px}';
   document.head.appendChild(st);
   const e=document.createElement('div');
   e.id='excV'; e.textContent='02 · CORDAME v2';
   e.setAttribute('aria-label','versão deste ambiente');
   document.body.appendChild(e);
+})();
+</script>
+
+<script>
+// ---------- ecrã desperto (Screen Wake Lock) ----------
+// em ecrã inteiro a peça comporta-se como um vídeo a correr: o aparelho não adormece.
+(function(){
+  let tranca=null;
+  const emCheio=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  function marca(){
+    const s=document.getElementById('excV');
+    if(s) s.setAttribute('data-desperto', tranca?'1':'0');
+  }
+  async function pedir(){
+    if(tranca || !('wakeLock' in navigator)) return;
+    try{
+      tranca=await navigator.wakeLock.request('screen');
+      tranca.addEventListener('release',()=>{ tranca=null; marca(); });
+    }catch(e){ tranca=null; }   // recusado pelo sistema, bateria fraca, etc.
+    marca();
+  }
+  function largar(){
+    if(!tranca) return;
+    try{ tranca.release(); }catch(e){}
+    tranca=null; marca();
+  }
+  const ver=()=>emCheio()?pedir():largar();
+  document.addEventListener('fullscreenchange',ver);
+  document.addEventListener('webkitfullscreenchange',ver);
+  // o sistema larga a tranca quando o separador vai para trás: recupera-se ao voltar
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && emCheio()) pedir(); });
+  addEventListener('pagehide',largar);
+  ver();
 })();
 </script>
 </body>
