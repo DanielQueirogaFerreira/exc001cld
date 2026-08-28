@@ -121,7 +121,7 @@ function contar(cor) {
 
 
 // ---------- persistência ----------
-const ESQUEMA = 7;   // subir este número refaz as tabelas
+const ESQUEMA = 8;   // subir este número refaz as tabelas
 
 async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
@@ -140,7 +140,9 @@ async function tabelas(db) {
     db.prepare(`DROP TABLE IF EXISTS exp_achados`),
     db.prepare(`DROP TABLE IF EXISTS contas`),
     db.prepare(`DROP TABLE IF EXISTS sessoes`),
-    db.prepare(`DROP TABLE IF EXISTS inspecoes`)
+    db.prepare(`DROP TABLE IF EXISTS inspecoes`),
+    db.prepare(`DROP TABLE IF EXISTS convites`),
+    db.prepare(`DROP TABLE IF EXISTS catalogo`)
   ]);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS salas (
@@ -193,7 +195,16 @@ async function tabelas(db) {
       id TEXT PRIMARY KEY, coord TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT '',
       nome TEXT NOT NULL DEFAULT '', gal TEXT NOT NULL DEFAULT '',
       autor TEXT NOT NULL, veredito TEXT NOT NULL, nota TEXT NOT NULL DEFAULT '',
-      t INTEGER NOT NULL)`)
+      t INTEGER NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS convites (
+      cod TEXT PRIMARY KEY, papel TEXT NOT NULL, criador TEXT NOT NULL,
+      criado INTEGER NOT NULL, nota TEXT NOT NULL DEFAULT '',
+      usado INTEGER, usado_por TEXT)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS catalogo (
+      coord TEXT PRIMARY KEY, camada INTEGER NOT NULL DEFAULT 1,
+      tipo TEXT NOT NULL, nome TEXT NOT NULL, gal TEXT NOT NULL,
+      valor INTEGER NOT NULL DEFAULT 1, la REAL, lo REAL,
+      nota TEXT NOT NULL DEFAULT '', autor TEXT NOT NULL, t INTEGER NOT NULL)`)
   ]);
   await db.prepare(`INSERT OR REPLACE INTO meta (chave,valor) VALUES ('esquema',?)`)
     .bind(String(ESQUEMA)).run();
@@ -575,14 +586,28 @@ async function contas(request, env, url) {
     const ja = await env.DB.prepare(`SELECT email FROM contas WHERE email=?`).bind(email).first();
     if (ja) return json({ erro: 'já existe conta com esse email' }, 409);
     const quantas = await env.DB.prepare(`SELECT COUNT(*) AS n FROM contas`).first();
-    const papel = (quantas.n | 0) === 0 ? 'administrador' : 'inspetor';   // o primeiro fica com as chaves
+    const primeira = (quantas.n | 0) === 0;
+    let papel = 'inspetor', convite = null;
+    if (primeira) {
+      papel = 'administrador';                      // o primeiro fica com as chaves
+    } else {
+      const cod = String(corpo.convite || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+      if (!cod) return json({ erro: 'é preciso um convite para criar conta' }, 403);
+      convite = await env.DB.prepare(`SELECT * FROM convites WHERE cod=?`).bind(cod).first();
+      if (!convite) return json({ erro: 'convite não existe' }, 403);
+      if (convite.usado) return json({ erro: 'esse convite já foi usado' }, 403);
+      papel = convite.papel === 'administrador' ? 'administrador' : 'inspetor';
+    }
     const sal = aleatorio(16);
     const chave = await derivar(senha, sal);
     await env.DB.prepare(`INSERT INTO contas (email,nome,sal,chave,papel,criada,visto)
       VALUES (?,?,?,?,?,?,?)`).bind(email, String(corpo.nome || '').slice(0, 40), sal, chave, papel, agora, agora).run();
     const t = aleatorio(24);
-    await env.DB.prepare(`INSERT INTO sessoes (tok,email,expira) VALUES (?,?,?)`)
-      .bind(t, email, agora + SESSAO_MS).run();
+    const passos = [env.DB.prepare(`INSERT INTO sessoes (tok,email,expira) VALUES (?,?,?)`)
+      .bind(t, email, agora + SESSAO_MS)];
+    if (convite) passos.push(env.DB.prepare(`UPDATE convites SET usado=?, usado_por=? WHERE cod=?`)
+      .bind(agora, email, convite.cod));          // o convite queima-se ao entrar
+    await env.DB.batch(passos);
     return json({ tok: t, eu: { email, nome: corpo.nome || '', papel } });
   }
 
@@ -615,6 +640,30 @@ async function contas(request, env, url) {
     return json({ contas: r.results });
   }
 
+  if (acao === 'convidar') {
+    if (eu.papel !== 'administrador') return json({ erro: 'só administradores convidam' }, 403);
+    const papel = corpo.papel === 'administrador' ? 'administrador' : 'inspetor';
+    const cod = (aleatorio(4).toUpperCase().replace(/[^0-9A-F]/g, '') + '000000').slice(0, 8);
+    await env.DB.prepare(`INSERT INTO convites (cod,papel,criador,criado,nota) VALUES (?,?,?,?,?)`)
+      .bind(cod, papel, eu.email, Date.now(), String(corpo.nota || '').slice(0, 60)).run();
+    const r = await env.DB.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all();
+    return json({ cod, convites: r.results });
+  }
+
+  if (acao === 'convites') {
+    if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
+    const r = await env.DB.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all();
+    return json({ convites: r.results });
+  }
+
+  if (acao === 'apagar-convite') {
+    if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
+    await env.DB.prepare(`DELETE FROM convites WHERE cod=? AND usado IS NULL`)
+      .bind(String(corpo.cod || '').toUpperCase()).run();
+    const r = await env.DB.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all();
+    return json({ convites: r.results });
+  }
+
   if (acao === 'papel') {
     if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
     const alvo = String(corpo.email || '').toLowerCase();
@@ -622,6 +671,54 @@ async function contas(request, env, url) {
     if (alvo === eu.email) return json({ erro: 'não pode mudar o seu próprio papel' }, 400);
     await env.DB.prepare(`UPDATE contas SET papel=? WHERE email=?`).bind(papel, alvo).run();
     return json({ ok: true });
+  }
+
+  return json({ erro: 'ação desconhecida' }, 400);
+}
+
+async function catalogo(request, env, url) {
+  if (!env.DB) return json({ erro: 'sem base de dados ligada' }, 503);
+  try { await tabelas(env.DB); }
+  catch (e) { return json({ erro: 'falha ao preparar as tabelas', detalhe: String((e && e.message) || e).slice(0, 300) }, 500); }
+  const corpo = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+  const tok = (corpo && corpo.tok) || url.searchParams.get('tok') || '';
+  const eu = await quemE(env.DB, tok);
+  const acao = (corpo && corpo.acao) || url.searchParams.get('acao') || 'listar';
+
+  if (acao === 'listar') {
+    const camada = Number(url.searchParams.get('camada') || corpo.camada || 0);
+    const r = camada
+      ? await env.DB.prepare(`SELECT * FROM catalogo WHERE camada=? ORDER BY valor DESC, t DESC LIMIT 400`).bind(camada).all()
+      : await env.DB.prepare(`SELECT * FROM catalogo ORDER BY valor DESC, t DESC LIMIT 400`).all();
+    return json({ catalogo: r.results });
+  }
+
+  if (!eu) return json({ erro: 'sessão expirada' }, 401);
+
+  if (acao === 'juntar') {
+    const itens = Array.isArray(corpo.itens) ? corpo.itens.slice(0, 60) : [];
+    if (!itens.length) return json({ erro: 'nada para juntar' }, 400);
+    const camada = Math.max(1, Math.min(99, corpo.camada | 0 || 1));
+    const agora = Date.now();
+    const passos = itens
+      .filter(i => /^EXC-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(String(i.cod || '')))
+      .map(i => env.DB.prepare(`INSERT INTO catalogo (coord,camada,tipo,nome,gal,valor,la,lo,nota,autor,t)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(coord) DO UPDATE SET camada=excluded.camada, nota=excluded.nota, t=excluded.t`)
+        .bind(String(i.cod), camada, String(i.tipo || '').slice(0, 40), String(i.nome || '').slice(0, 40),
+              String(i.gal || '').slice(0, 40), i.valor | 0, i.la || null, i.lo || null,
+              String(i.nota || '').slice(0, 200), eu.email, agora));
+    if (!passos.length) return json({ erro: 'coordenadas mal formadas' }, 400);
+    await env.DB.batch(passos);
+    const r = await env.DB.prepare(`SELECT * FROM catalogo ORDER BY valor DESC, t DESC LIMIT 400`).all();
+    return json({ catalogo: r.results, juntados: passos.length });
+  }
+
+  if (acao === 'apagar') {
+    if (eu.papel !== 'administrador') return json({ erro: 'só administradores apagam do catálogo' }, 403);
+    await env.DB.prepare(`DELETE FROM catalogo WHERE coord=?`).bind(String(corpo.coord || '')).run();
+    const r = await env.DB.prepare(`SELECT * FROM catalogo ORDER BY valor DESC, t DESC LIMIT 400`).all();
+    return json({ catalogo: r.results });
   }
 
   return json({ erro: 'ação desconhecida' }, 400);
@@ -697,13 +794,14 @@ export default {
       }
       return json({
         ok: true, base: !!env.DB, esquema, contas: contasN, inspecoes: inspN, aviso,
-        rotas: ['/api/vida', '/api/colmeia', '/api/cosmos', '/api/conta', '/api/inspecao']
+        rotas: ['/api/vida', '/api/colmeia', '/api/cosmos', '/api/conta', '/api/inspecao', '/api/catalogo']
       });
     }
     try {
       if (url.pathname === '/api/cosmos') return await cosmos(request, env, url);
       if (url.pathname === '/api/conta') return await contas(request, env, url);
       if (url.pathname === '/api/inspecao') return await inspecoes(request, env, url);
+      if (url.pathname === '/api/catalogo') return await catalogo(request, env, url);
     } catch (e) {
       // sem isto, uma exceção aqui devolvia a página de erro do Cloudflare em HTML
       return json({ erro: 'falha no servidor', detalhe: String((e && e.message) || e).slice(0, 300) }, 500);
