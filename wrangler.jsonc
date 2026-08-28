@@ -1,13 +1,21 @@
 {
   // EXC001CLD — recursos estáticos servidos da raiz do repositório.
-  // O código só corre em /api/*; tudo o resto é estático e não é faturado.
+  //
+  // "run_worker_first" manda /api/* diretamente para o código, antes de o
+  // Cloudflare procurar ficheiros. Todo o resto continua estático, servido
+  // pela borda e não faturado.
+  //
+  // "not_found_handling": "none" deixa qualquer caminho sem ficheiro cair no
+  // Worker, em vez de devolver uma página de erro em HTML — foi isso que
+  // partia as chamadas de API.
   "name": "exc001cld",
   "main": "worker.js",
   "compatibility_date": "2026-08-01",
   "assets": {
     "directory": "./",
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
+    "not_found_handling": "none",
+    "run_worker_first": ["/api/*"]
   },
   "d1_databases": [
     {
