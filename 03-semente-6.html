@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SEMENTE — um céu e um poema por número</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300;1,9..144,500&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tinta:#0A0B14;
+    --papel:#F4F1E8;
+    --dim:rgba(244,241,232,.52);
+    --line:rgba(244,241,232,.2);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%;background:var(--tinta);color:var(--papel)}
+  body{font-family:"IBM Plex Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;overflow:hidden}
+  #sky{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.5;
+    background-image:radial-gradient(rgba(255,255,255,.09) .5px,transparent .5px);
+    background-size:3px 3px;mix-blend-mode:overlay}
+  .fade{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:linear-gradient(180deg,rgba(10,11,20,.72) 0%,rgba(10,11,20,.25) 35%,rgba(10,11,20,.55) 72%,rgba(10,11,20,.95) 100%)}
+
+  .page{position:relative;z-index:2;height:100vh;height:100dvh;
+    display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+    padding:clamp(14px,3vw,38px);gap:clamp(12px,2.4vh,34px);
+    padding-bottom:calc(clamp(14px,3vw,38px) + env(safe-area-inset-bottom,0px))}
+
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;
+    border-bottom:1px solid var(--line);padding-bottom:12px}
+  .mark{font-size:10px;letter-spacing:.46em;text-transform:uppercase;color:var(--dim)}
+  .seedbox{text-align:right}
+  .seedbox span{display:block;font-size:9px;letter-spacing:.3em;color:var(--dim);margin-bottom:4px}
+  .seedbox b{font-size:clamp(15px,2.4vw,22px);font-weight:500;font-variant-numeric:tabular-nums;
+    letter-spacing:.04em}
+  .seedrow{display:flex;align-items:center;justify-content:flex-end;gap:12px}
+  .seedrow input{font:inherit;font-size:clamp(15px,2.4vw,22px);font-weight:500;
+    font-variant-numeric:tabular-nums;letter-spacing:.08em;text-align:right;
+    width:9.5ch;padding:2px 0 3px;color:var(--papel);background:transparent;
+    border:0;border-bottom:1px solid var(--line);border-radius:0;
+    -webkit-appearance:none;transition:border-color .2s}
+  .seedrow input::placeholder{color:rgba(244,241,232,.22)}
+  .seedrow input:focus{outline:none;border-bottom-color:#9BE7FF;color:#9BE7FF}
+  .seedrow input.churn{color:#9BE7FF}
+  .dica{font-size:9px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;
+    text-align:right;margin-top:5px;transition:opacity .3s}
+  .roll{width:30px;height:30px;flex:0 0 30px;padding:0;font-size:13px;line-height:1;
+    border:1px solid var(--papel);border-radius:50%;color:var(--papel);background:transparent;
+    display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s}
+  .roll:hover{background:var(--papel);color:var(--tinta)}
+  .roll:active{transform:scale(.94)}
+  .roll.spin{animation:spin .8s cubic-bezier(.3,.9,.2,1)}
+  @keyframes spin{from{transform:rotate(0)}to{transform:rotate(540deg)}}
+  .churn{color:#9BE7FF}
+
+  main{display:flex;flex-direction:column;justify-content:center;
+    max-width:min(760px,92vw);margin:0 auto;width:100%;
+    min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
+  .kicker{font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--dim);margin-bottom:1.4em}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;
+    font-size:clamp(32px,6.4vw,68px);line-height:1.02;letter-spacing:-.02em;
+    margin-bottom:.7em;text-wrap:balance}
+  .verses p{font-family:"Fraunces",Georgia,serif;font-style:italic;font-weight:300;
+    font-size:clamp(17px,2.5vw,27px);line-height:1.62;
+    margin:0 0 .48em;max-width:38ch;text-wrap:pretty}
+  .verses p.end{font-style:normal;font-weight:500;font-size:clamp(15px,2vw,21px);
+    margin-top:.9em;letter-spacing:.01em}
+  .rise{opacity:0;transform:translateY(14px);animation:rise .9s cubic-bezier(.2,.7,.3,1) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  footer{display:flex;gap:7px;flex-wrap:wrap;align-items:center;position:relative;
+    border-top:1px solid var(--line);padding-top:11px;flex-shrink:0}
+  /* quanto falta para o próximo sorteio */
+  #prog{position:absolute;top:-1px;left:0;height:1px;width:0;background:#9BE7FF;
+    box-shadow:0 0 8px #9BE7FF;transition:opacity .3s;opacity:0}
+  #prog.on{opacity:.9}
+  #bRate{font-variant-numeric:tabular-nums;min-width:44px}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+    display:inline-block;text-decoration:none;line-height:normal;
+    background:transparent;color:var(--papel);border:1px solid var(--line);
+    padding:7px 11px;cursor:pointer;transition:.2s;border-radius:1px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px;border-radius:1px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+
+  button:hover,a.btn:hover{background:var(--papel);color:var(--tinta)}
+  a.btn{color:var(--papel);border:1px solid var(--line);padding:7px 11px;border-radius:1px}
+  a.btn:focus-visible{outline:2px solid #9BE7FF;outline-offset:2px}
+  button:focus-visible{outline:2px solid #9BE7FF;outline-offset:2px}
+  .primary{border-color:var(--papel)}
+  .legend{font-size:10px;color:var(--dim);line-height:1.8;margin-left:auto;text-align:right;max-width:40ch}
+  @media (max-width:640px){ .legend{display:none} .mark{letter-spacing:.3em} }
+  @media (prefers-reduced-motion:reduce){ .rise{animation:none;opacity:1;transform:none} }
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="grain"></div>
+<div class="fade"></div>
+
+<div class="page">
+  <header>
+    <div class="mark">Semente · oráculo determinístico</div>
+    <div class="seedbox">
+      <span>NÚMERO</span>
+      <div class="seedrow">
+        <input id="seedNum" inputmode="numeric" pattern="[0-9]*" maxlength="8"
+               placeholder="00000000" autocomplete="off" spellcheck="false"
+               aria-label="Número da semente: escreva oito dígitos para gerar esse poema">
+        <button id="bRoll" class="roll" aria-label="Sortear nova semente" title="Sortear nova semente">⟳</button>
+      </div>
+      <p class="dica" id="dicaSeed">escreva um número e prima enter</p>
+    </div>
+  </header>
+
+  <main>
+    <p class="kicker" id="kicker">o mesmo número devolve sempre o mesmo céu e o mesmo poema</p>
+    <h1 id="title"></h1>
+    <div class="verses" id="verses"></div>
+  </main>
+
+  <footer>
+    <i id="prog" aria-hidden="true"></i>
+    <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    <button id="bAuto" aria-pressed="false">Sequência</button>
+    <button id="bRate" title="Tempo entre sorteios">7 s</button>
+    <button id="bLink">Copiar ligação</button>
+    <button id="bText">Copiar poema</button>
+    <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    <p class="legend">O céu não é um vídeo: é uma equação a correr na sua placa gráfica.
+      As mesmas cinco variáveis que lhe dão a cor escolhem também os substantivos.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+// ================= PRNG determinístico =================
+function mulberry32(a){ return function(){
+  a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296;
+};}
+let rnd=Math.random, seed=0;
+let used=new Set();
+function pick(arr){                       // sem repetir nada dentro do mesmo poema
+  for(let i=0;i<10;i++){
+    const v=arr[Math.floor(rnd()*arr.length)];
+    if(!used.has(v)){ used.add(v); return v; }
+  }
+  return arr[Math.floor(rnd()*arr.length)];
+}
+
+// ================= léxico =================
+const NF=['maré','cinza','bússola','colmeia','ferrugem','névoa','corda','âncora','semente',
+  'janela','chuva','memória','cal','ossada','ilha','madrugada','lâmina','ponte','febre','fome'];
+const NM=['farol','âmbar','relâmpago','arquivo','vidro','sal','sino','cais','silêncio','fôlego',
+  'prego','rio','deserto','espelho','corvo','inverno','barro','fio','osso','vento'];
+const ADJ=[['antigo','antiga'],['lento','lenta'],['aceso','acesa'],['húmido','húmida'],
+  ['quieto','quieta'],['aberto','aberta'],['teimoso','teimosa'],['salgado','salgada'],
+  ['cego','cega'],['provisório','provisória'],['exato','exata'],['rouco','rouca'],
+  ['íntimo','íntima'],['inteiro','inteira'],['torto','torta']];
+const VI=['espera','resiste','apodrece','insiste','arde','desaba','respira','escuta','regressa',
+  'permanece','gira','floresce','adormece','recomeça','hesita','transborda'];
+const VT=['mede','engole','devolve','arrasta','corrige','repete','dissolve','cose',
+  'conta','atravessa','guarda','esquece','lava','desmancha'];
+const LUG=['No fundo do poço','À beira do cais','Entre duas marés','No verso do bilhete',
+  'Debaixo da língua','Na dobra do mapa','No quarto que sobrou','Onde o rio muda de nome',
+  'Por dentro do inverno','Na última fila','Depois do aviso','Antes de haver nomes'];
+const COMP=['como quem fecha uma porta devagar','como um sino dentro de água',
+  'como quem pede desculpa a uma máquina','como se o tempo tivesse costura',
+  'como quem conta as próprias mãos','como um relógio parado na hora certa',
+  'como quem aprende a nadar em terra','como se alguém estivesse quase a chegar',
+  'como um nome dito à segunda vez'];
+const TIT=['Cartografia','Elegia','Pequeno tratado','Notícia','Inventário','Ofício','Véspera','Aritmética'];
+
+function noun(){ const f=rnd()<0.5;
+  return f ? {w:pick(NF),g:1,art:'a',de:'da'} : {w:pick(NM),g:0,art:'o',de:'do'}; }
+function adj(g){ return pick(ADJ)[g]; }
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+
+function line(k){
+  const a=noun(), b=noun();
+  switch(k){
+    case 0: return `${pick(LUG)}, ${a.art} ${a.w} ${pick(VI)}.`;
+    case 1: return `${cap(a.art)} ${a.w} ${adj(a.g)} ${pick(VT)} ${b.art} ${b.w}.`;
+    case 2: return `Tudo o que ${pick(VI)} — ${a.w}, ${b.w} — ${pick(VI)} ${pick(COMP)}.`;
+    case 3: return `${cap(pick(COMP))}, ${a.art} ${a.w} ${pick(VI)}.`;
+    case 4: return `Não ${pick(VT)} ${a.art} ${a.w}: ${pick(VT)} ${b.art} ${b.w}.`;
+    case 5: return `E ${a.art} ${a.w}, ${adj(a.g)} e ${adj(a.g)}, ${pick(VI)}.`;
+    case 6: return `${cap(a.art)} ${a.w} sabe ${pick(COMP)}.`;
+    default: return `${cap(a.art)} ${a.w} ${pick(VI)}.`;
+  }
+}
+
+function poem(){
+  used=new Set();
+  const n=4+Math.floor(rnd()*3);
+  const bag=[0,1,2,3,4,5,6];
+  const out=[];
+  for(let i=0;i<n;i++){
+    const k=bag.splice(Math.floor(rnd()*bag.length),1)[0];
+    out.push(line(k===undefined?7:k));
+  }
+  const a=noun();
+  out.push({end:`${cap(a.art)} ${a.w} ${pick(VI)}. Mais nada.`});
+  const t=noun();
+  return {title:`${pick(TIT)} ${t.de} ${t.w}`, lines:out};
+}
+
+// ================= céu (WebGL) =================
+const cvs=document.getElementById('sky');
+let gl=null, prog=null, U={}, t0=performance.now();
+let P=[0.5,0.5,2.0,0.4,0.5,0], TGT=P.slice(), surge=0;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const VS=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
+const FS=`precision highp float;
+uniform vec2 uRes;uniform float uT,uHue,uHue2,uWarp,uScale,uSpeed,uTilt,uSurge;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.));
+ return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
+float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*noise(p);p=p*2.07+vec2(3.1,1.7);a*=.5;}return s;}
+vec3 hsv(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);
+ vec3 q=abs(fract(c.xxx+K.xyz)*6.-K.www);
+ return c.z*mix(K.xxx,clamp(q-K.xxx,0.,1.),c.y);}
+void main(){
+ vec2 uv=(gl_FragCoord.xy-.5*uRes)/uRes.y;
+ float sg=uSurge;
+ float t=uT*uSpeed*(1.+sg*4.);
+ float wp=uWarp*(1.+sg*1.6);
+ uv*= (1.0+uScale*.9-sg*.10);
+ uv=mat2(cos(uTilt),-sin(uTilt),sin(uTilt),cos(uTilt))*uv;
+ uv.x+=sg*.06*sin(uv.y*22.+uT*9.);            // trepidação durante a troca
+ vec2 q=vec2(fbm(uv+vec2(0.,t*.08)),fbm(uv+vec2(5.2,1.3)-t*.05));
+ vec2 r=vec2(fbm(uv+wp*q+vec2(1.7,9.2)+t*.06),fbm(uv+wp*q+vec2(8.3,2.8)-t*.04));
+ float v=fbm(uv+wp*r);
+ float bands=smoothstep(.35,.85,v);
+ vec3 c1=hsv(vec3(uHue,.62,.95));
+ vec3 c2=hsv(vec3(uHue2,.85,.55));
+ vec3 col=mix(c2*.35,c1,pow(bands,1.5));
+ col+=c1*pow(max(0.,r.x),4.)*.85;
+ col+=vec3(.55,.78,1.)*sg*pow(max(0.,v-.55),2.)*1.4;
+ col*=.35+.9*smoothstep(1.15,.05,length(uv)*.9);
+ col*=1.+sg*.25;
+ col=pow(col,vec3(.86));
+ gl_FragColor=vec4(col,1.);
+}`;
+
+function compile(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+
+function initGL(){
+  try{ gl=cvs.getContext('webgl')||cvs.getContext('experimental-webgl'); }catch(e){}
+  if(!gl){ document.body.style.background='linear-gradient(160deg,#1b1035,#0A0B14 60%,#08211f)'; return false; }
+  prog=gl.createProgram();
+  gl.attachShader(prog,compile(gl.VERTEX_SHADER,VS));
+  gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,FS));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  const buf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+  const loc=gl.getAttribLocation(prog,'p');
+  gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  ['uRes','uT','uHue','uHue2','uWarp','uScale','uSpeed','uTilt','uSurge'].forEach(n=>U[n]=gl.getUniformLocation(prog,n));
+  resize(); return true;
+}
+function resize(){
+  if(!gl) return;
+  const s=0.62, w=Math.round(innerWidth*s), h=Math.round(innerHeight*s);
+  cvs.width=w; cvs.height=h; gl.viewport(0,0,w,h);
+}
+function loop(){
+  if(gl){
+    const t=(performance.now()-t0)/1000;
+    // o céu não corta: desloca-se dos parâmetros antigos para os novos
+    for(let i=0;i<6;i++) P[i]+=(TGT[i]-P[i])*(reduce?1:0.055);
+    surge*= reduce?0:0.955;
+    gl.uniform2f(U.uRes,cvs.width,cvs.height);
+    gl.uniform1f(U.uT, reduce?12.0:t);
+    gl.uniform1f(U.uHue,P[0]); gl.uniform1f(U.uHue2,P[1]);
+    gl.uniform1f(U.uWarp,P[2]); gl.uniform1f(U.uScale,P[3]);
+    gl.uniform1f(U.uSpeed,P[4]); gl.uniform1f(U.uTilt,P[5]);
+    gl.uniform1f(U.uSurge,surge);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+  }
+  requestAnimationFrame(loop);
+}
+
+// ================= composição =================
+let current=null, rolling=false;
+const GLYPH='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/\\|<>[]{}=+*—·§∆◊≈';
+const seedEl=document.getElementById('seedNum');
+const escrever=t=>{ seedEl.value=t; };
+
+// número a rolar, dígito a dígito, até assentar
+function churn(finalStr, dur){
+  if(document.activeElement===seedEl){ escrever(finalStr); return; }   // não disputa com quem escreve
+  const start=performance.now();
+  seedEl.classList.add('churn');
+  (function tick(){
+    const t=Math.min(1,(performance.now()-start)/dur);
+    const lock=Math.floor((t*t)*finalStr.length*1.25);
+    let s='';
+    for(let i=0;i<finalStr.length;i++){
+      const c=finalStr[i];
+      s += (i<lock || !/\d/.test(c)) ? c : String((Math.random()*10)|0);
+    }
+    escrever(s);
+    if(t<1) requestAnimationFrame(tick);
+    else { escrever(finalStr); seedEl.classList.remove('churn'); }
+  })();
+}
+
+// verso a decifrar-se da esquerda para a direita
+function decode(el, text, delay, dur){
+  const start=performance.now()+delay;
+  let f=0;
+  el.textContent='';
+  (function tick(){
+    const now=performance.now();
+    const t=Math.max(0,Math.min(1,(now-start)/dur));
+    if((f++ % 2)===0){
+      let out='';
+      for(let i=0;i<text.length;i++){
+        const c=text[i];
+        const th=(i/text.length)*0.72;
+        if(c===' ' || t>=th+0.28) out+=c;
+        else if(t<th) out+=' ';
+        else out+=GLYPH[(Math.random()*GLYPH.length)|0];
+      }
+      el.textContent=out;
+    }
+    if(t<1) requestAnimationFrame(tick); else el.textContent=text;
+  })();
+}
+
+function grow(s, mode){          // mode: 'first' | 'roll' | 'plain'
+  seed=s>>>0;
+  rnd=mulberry32(seed);
+  // as mesmas variáveis alimentam céu e texto
+  const np=[rnd(), rnd(), 1.4+rnd()*3.4, rnd()*0.8, 0.25+rnd()*0.75, (rnd()-0.5)*1.6];
+  current=poem();
+
+  TGT=np;
+  if(mode==='first' || reduce) P=np.slice();
+  if(mode==='roll'||mode==='escrito') surge=1;
+
+  const label=String(seed).padStart(8,'0');
+  if(mode==='roll' && !reduce) churn(label, 900); else escrever(label);
+
+  const T=document.getElementById('title'), V=document.getElementById('verses');
+  T.textContent=current.title; V.innerHTML='';
+  const rows=[];
+  current.lines.forEach((l,i)=>{
+    const p=document.createElement('p');
+    const isEnd=typeof l==='object';
+    const txt=isEnd?l.end:l;
+    p.textContent=txt;
+    if(isEnd) p.className='end';
+    V.appendChild(p); rows.push([p,txt]);
+  });
+
+  if((mode==='roll'||mode==='escrito') && !reduce){
+    decode(T, current.title, 0, 800);
+    rows.forEach(([p,txt],i)=>decode(p, txt, 220+i*130, 700));
+    if(mode==='escrito') surge=0.7;
+    rolling=true;
+    setTimeout(()=>rolling=false, 220+rows.length*130+700);
+  } else if(mode==='first' && !reduce){
+    T.classList.add('rise');
+    rows.forEach(([p],i)=>{ p.classList.add('rise'); p.style.animationDelay=(0.12+i*0.11)+'s'; });
+  }
+
+  // em pré-visualizações dentro de iframe (about:srcdoc) o endereço é imutável:
+  // guarda a semente na mesma, sem partir a página
+  try{ history.replaceState(null,'','#'+seed); }
+  catch(e){ try{ location.hash=seed; }catch(_){ } }
+}
+function shareLink(){
+  const u=location.href;
+  return /^https?:/.test(u) ? u.split('#')[0]+'#'+seed : null;
+}
+function plainText(){
+  return current.title+'\n\n'+current.lines.map(l=>typeof l==='object'?l.end:l).join('\n')
+    +'\n\n— semente '+seed;
+}
+async function copy(txt,btn,ok){
+  const old=btn.textContent;
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand('copy');}catch(_){} ta.remove(); }
+  btn.textContent=ok; setTimeout(()=>btn.textContent=old,1600);
+}
+
+// ---------- número escrito à mão ----------
+// o mesmo número devolve sempre o mesmo céu e o mesmo poema: aqui pede-se um.
+seedEl.addEventListener('input',()=>{
+  const limpo=seedEl.value.replace(/\D/g,'').slice(0,8);
+  if(limpo!==seedEl.value) seedEl.value=limpo;
+});
+function usarEscrito(){
+  const n=parseInt(seedEl.value.replace(/\D/g,''),10);
+  if(isNaN(n)){ escrever(String(seed).padStart(8,'0')); return; }
+  if(n===seed){ escrever(String(seed).padStart(8,'0')); return; }
+  grow(n, 'escrito');
+}
+seedEl.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); seedEl.blur(); usarEscrito(); }
+  if(e.key==='Escape'){ escrever(String(seed).padStart(8,'0')); seedEl.blur(); }
+});
+seedEl.addEventListener('blur',usarEscrito);
+seedEl.addEventListener('focus',()=>{ seedEl.select(); });
+
+// ---------- sorteio ----------
+const bRoll=document.getElementById('bRoll');
+function roll(){
+  bRoll.classList.remove('spin'); void bRoll.offsetWidth; bRoll.classList.add('spin');
+  grow(Math.floor(Math.random()*99999999), 'roll');
+}
+bRoll.onclick=roll;
+
+// ---------- sequência automática, com ritmo ajustável ----------
+const RATES=[3000,5000,7000,14000,20000,45000];
+let rateIx=2, autoOn=false, nextAt=0, autoT=null;
+const bAuto=document.getElementById('bAuto');
+const bRate=document.getElementById('bRate');
+const barEl=document.getElementById('prog');
+const period=()=>RATES[rateIx];
+
+function label(){ const s=period()/1000; bRate.textContent = s<60 ? s+' s' : (s/60)+' min'; }
+bRate.onclick=()=>{
+  rateIx=(rateIx+1)%RATES.length; label();
+  if(autoOn) arm();                     // o ritmo novo vale já, sem esperar o ciclo antigo
+};
+function arm(){
+  clearTimeout(autoT);
+  nextAt=performance.now()+period();
+  autoT=setTimeout(()=>{ roll(); if(autoOn) arm(); }, period());
+}
+function autoStop(){
+  autoOn=false; clearTimeout(autoT); autoT=null;
+  bAuto.setAttribute('aria-pressed','false'); bAuto.textContent='Sequência';
+  barEl.classList.remove('on'); barEl.style.width='0';
+}
+bAuto.onclick=()=>{
+  if(autoOn) return autoStop();
+  autoOn=true;
+  bAuto.setAttribute('aria-pressed','true'); bAuto.textContent='Parar';
+  barEl.classList.add('on');
+  roll(); arm();
+};
+// não gasta ciclos com o separador escondido; retoma a contagem ao voltar
+document.addEventListener('visibilitychange',()=>{
+  if(!autoOn) return;
+  if(document.hidden){ clearTimeout(autoT); autoT=null; }
+  else arm();
+});
+(function tickProg(){
+  if(autoOn && autoT){
+    const left=Math.max(0, nextAt-performance.now());
+    barEl.style.width=(100*(1-left/period()))+'%';
+  }
+  requestAnimationFrame(tickProg);
+})();
+label();
+
+document.getElementById('bLink').onclick=e=>{
+  const u=shareLink();
+  if(u) copy(u,e.currentTarget,'Copiado');
+  else copy('semente '+seed, e.currentTarget, 'Semente '+seed+' copiada');
+};
+document.getElementById('bText').onclick=e=>copy(plainText(),e.currentTarget,'Copiado');
+const FS_REBUILD=()=>resize();
+
+// ---------- imersão: só a arte, sem números ----------
+(function(){
+  const framed = window.self!==window.top;
+  const st=document.createElement('style');
+  st.textContent =
+    '.shell,header,footer{transition:opacity .5s}'+
+    'html.zen .shell,html.zen header,html.zen footer{opacity:0;pointer-events:none}'+
+    '#zenOut{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));'+
+    'bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;width:30px;height:30px;'+
+    'border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.4);'+
+    'color:#fff;opacity:0;pointer-events:none;transition:opacity .4s;display:grid;'+
+    'place-items:center;cursor:pointer;padding:0;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}'+
+    'html.zen #zenOut{opacity:.34;pointer-events:auto}'+
+    '#zenOut:hover,#zenOut:focus-visible{opacity:.95}'+
+    '#zenOut svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}';
+  document.head.appendChild(st);
+
+  const EYE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  const EYE_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11.05 6.03 11.5 6 12 6c6.4 0 10 6 10 6s-1.2 2-3.3 3.7M6.4 8.3C3.9 9.9 2 12 2 12s3.6 6.5 10 6.5c1.3 0 2.5-.2 3.5-.6"/></svg>';
+
+  function setZen(on){
+    document.documentElement.classList.toggle('zen', !!on);
+    if(btn){ btn.setAttribute('aria-pressed', !!on); btn.innerHTML = on?EYE_OFF:EYE; }
+  }
+  const isZen=()=>document.documentElement.classList.contains('zen');
+
+  // botão no painel de controlos da própria peça, ao lado do ecrã inteiro
+  let btn=null;
+  const fsb=document.getElementById('bFs');
+  if(fsb&&fsb.parentNode){
+    btn=document.createElement('button');
+    btn.className='fsbtn'; btn.id='bZen';
+    btn.setAttribute('aria-pressed','false');
+    btn.title='Imersão: esconder números'; btn.setAttribute('aria-label',btn.title);
+    btn.innerHTML=EYE;
+    btn.addEventListener('click',()=>setZen(!isZen()));
+    fsb.parentNode.insertBefore(btn, fsb);
+    if(framed) btn.style.display='none';        // dentro do painel manda a barra
+  }
+  // saída flutuante, para quando a peça corre sozinha e tudo está escondido
+  if(!framed){
+    const out=document.createElement('button');
+    out.id='zenOut'; out.innerHTML=EYE_OFF;
+    out.title='Sair da imersão'; out.setAttribute('aria-label',out.title);
+    out.addEventListener('click',()=>setZen(false));
+    document.body.appendChild(out);
+  }
+  addEventListener('message',e=>{ if(e.data&&e.data.exc==='zen') setZen(e.data.on); });
+  addEventListener('keydown',e=>{
+    if((e.key==='z'||e.key==='Z') && !e.metaKey && !e.ctrlKey){ setZen(!isZen()); }
+    if(e.key==='Escape' && isZen()) setZen(false);
+  });
+})();
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+
+  // dentro do painel EXC: a barra de baixo trata de voltar e do ecrã inteiro,
+  // e o modo nunca cai porque o documento de cima nunca é recarregado
+  if(framed){
+    if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
+    });
+    // reserva o canto do polegar para a barra do painel
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
+    return;
+  }
+
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){
+      btn.setAttribute('aria-pressed', on);
+      const lbl = on ? 'Sair do ecrã inteiro' : 'Ecrã inteiro';
+      btn.title=lbl; btn.setAttribute('aria-label',lbl);
+    }
+    links();
+    if(typeof FS_REBUILD==='function') FS_REBUILD();
+  }
+  if(btn){
+    if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); });
+  }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+
+  if(can && wanted() && !isOn()){
+    req();
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)), 20000);
+  }
+  links(); sync();
+})();
+
+addEventListener('resize',resize);
+addEventListener('hashchange',()=>{ const h=parseInt(location.hash.slice(1),10);
+  if(!isNaN(h) && h!==seed) grow(h,'roll'); });
+
+initGL(); loop();
+const h0=parseInt(location.hash.slice(1),10);
+grow(isNaN(h0)?Math.floor(Math.random()*99999999):h0, 'first');
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='BUTTON') return;
+  if(e.code==='Space'||e.key==='n'||e.key==='N'){ e.preventDefault(); roll(); }
+});
+})();
+</script>
+
+<script>
+// ---------- selo de versão ----------
+(function(){
+  const st=document.createElement('style');
+  st.textContent='#excV{position:fixed;left:calc(9px + env(safe-area-inset-left,0px));'+
+    'bottom:calc(9px + env(safe-area-inset-bottom,0px));z-index:14;pointer-events:none;'+
+    'font:500 8.5px/1 ui-monospace,monospace;letter-spacing:.16em;padding:4px 6px;'+
+    'border-radius:3px;color:rgba(255,255,255,.62);background:rgba(0,0,0,.34);'+
+    '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
+    'transition:opacity .4s}'+
+    '.deck,footer{padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}'+'@media (max-width:560px){.deck,footer{padding-bottom:calc(30px + env(safe-area-inset-bottom,0px))}}'+'.hint,.meta{margin-bottom:2px}'+
+    'html.zen #excV{opacity:0}';
+  document.head.appendChild(st);
+  const e=document.createElement('div');
+  e.id='excV'; e.textContent='03 · SEMENTE v6';
+  e.setAttribute('aria-label','versão deste ambiente');
+  document.body.appendChild(e);
+})();
+</script>
+</body>
+</html>
