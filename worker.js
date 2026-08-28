@@ -462,7 +462,8 @@ async function cosmos(request, env, url) {
     const estado = a.e === 'visitado' ? 'visitado' : 'reconhecido';
     let pontos = PONTOS[proc] + (estado === 'visitado' ? PONTOS.visitado : 0)
                + (a.estudos ? Math.min(3, a.estudos | 0) * PONTOS.estudo : 0)
-               + Math.max(0, Math.min(5, a.prec | 0));   // pontaria: até 5 por acertar no ponto
+               + Math.max(0, Math.min(5, a.prec | 0))    // pontaria: até 5 por acertar no ponto
+               + Math.max(0, Math.min(12, a.raro | 0));  // raridade do corpo encontrado
     const ja = await env.DB.prepare(`SELECT v, pontos, estado FROM exp_achados WHERE cod=? AND chave=?`)
       .bind(cod, chave).first();
     if (ja && exp.modo === 'colaboracao' && ja.v !== v && ja.estado === estado) {
