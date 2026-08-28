@@ -33,6 +33,12 @@
     color:var(--dim);margin:12px 0 5px}
   input,select,textarea{width:100%;font:inherit;font-size:13px;background:rgba(230,236,255,.06);
     border:1px solid var(--line);color:var(--luz);padding:10px 12px;border-radius:3px}
+  /* a lista aberta de um select usa cores do sistema: é preciso dizê-las à mão */
+  select{background-color:#10131F;color:var(--luz);-webkit-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%2379839F' stroke-width='1.6'/></svg>");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+  select option{background-color:#10131F;color:#E6ECFF}
+  select option:checked{background-color:#1B2136;color:#6BE7A8}
   input:focus,select,textarea:focus{outline:2px solid var(--dc);outline-offset:-1px}
   textarea{min-height:82px;resize:vertical;line-height:1.6}
   /* campo de senha com revelador: padrão do laboratório */
@@ -69,6 +75,8 @@
     padding:8px 10px 8px 0;border-bottom:1px solid var(--line);font-weight:500}
   td{padding:10px 10px 10px 0;border-bottom:1px solid rgba(230,236,255,.07);vertical-align:top}
   td.cod{font-family:"Chakra Petch",monospace;letter-spacing:.06em;color:var(--ds);white-space:nowrap}
+  a.irCoord{color:var(--ds);text-decoration:none;border-bottom:1px dotted rgba(255,180,84,.5)}
+  a.irCoord:hover{color:var(--luz);border-bottom-color:var(--luz)}
   .ver{font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:2px 7px;border-radius:3px}
   .ver.confirmado{background:rgba(107,231,168,.16);color:var(--dc)}
   .ver.ajustar{background:rgba(255,180,84,.16);color:var(--ds)}
@@ -501,14 +509,16 @@ function pintarCatalogo(lista){
   el('tabelaCat').innerHTML='<p style="font-size:10px">'+lista.length+' corpos em '+
     Object.keys(porTipo).length+' tipos</p><table><thead><tr><th>coordenada</th><th>corpo</th>'+
     '<th>galáxia</th><th>camada</th><th>valor</th><th></th></tr></thead><tbody>'+
-    lista.map(c=>'<tr><td class="cod">'+c.coord+'</td>'+
+    lista.map(c=>'<tr><td class="cod"><a class="irCoord" href="07-cosmografo-9.html#coord='+
+      encodeURIComponent(c.coord)+'" target="_blank" rel="noopener" title="abrir no Cosmógrafo">'+
+      c.coord+'</a></td>'+
     '<td>'+c.nome+'<br><span class="nota">'+c.tipo+'</span></td>'+
     '<td class="nota">'+c.gal+'</td><td>'+c.camada+'</td><td>'+c.valor+' pt</td>'+
     '<td><button class="leve" data-ir="'+c.coord+'" style="padding:6px 10px">VER</button>'+
     (eu&&eu.papel==='administrador'?'<button class="leve" data-rmc="'+c.coord+'" style="padding:6px 10px">✕</button>':'')+
     '</td></tr>').join('')+'</tbody></table>';
   document.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>
-    open('07-cosmografo-8.html#coord='+encodeURIComponent(b.dataset.ir),'_blank'));
+    open('07-cosmografo-9.html#coord='+encodeURIComponent(b.dataset.ir),'_blank'));
   document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=async()=>{
     try{ pintarCatalogo((await api('catalogo',{acao:'apagar',coord:b.dataset.rmc})).catalogo); }catch(e){}
   });
@@ -539,7 +549,7 @@ function pintarCatalogo(lista){
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42)}';
   document.head.appendChild(st);
   const e=document.createElement('div');
-  e.id='excV'; e.textContent='ADMIN v4';
+  e.id='excV'; e.textContent='ADMIN v5';
   document.body.appendChild(e);
 })();
 </script>
