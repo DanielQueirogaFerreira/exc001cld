@@ -121,7 +121,7 @@ function contar(cor) {
 
 
 // ---------- persistência ----------
-const ESQUEMA = 6;   // subir este número refaz as tabelas
+const ESQUEMA = 7;   // subir este número refaz as tabelas
 
 async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
@@ -137,7 +137,10 @@ async function tabelas(db) {
     db.prepare(`DROP TABLE IF EXISTS chaves`),
     db.prepare(`DROP TABLE IF EXISTS expedicoes`),
     db.prepare(`DROP TABLE IF EXISTS exp_membros`),
-    db.prepare(`DROP TABLE IF EXISTS exp_achados`)
+    db.prepare(`DROP TABLE IF EXISTS exp_achados`),
+    db.prepare(`DROP TABLE IF EXISTS contas`),
+    db.prepare(`DROP TABLE IF EXISTS sessoes`),
+    db.prepare(`DROP TABLE IF EXISTS inspecoes`)
   ]);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS salas (
@@ -179,7 +182,18 @@ async function tabelas(db) {
       cod TEXT NOT NULL, chave TEXT NOT NULL, v TEXT NOT NULL, nome TEXT NOT NULL,
       gal TEXT NOT NULL, tipo TEXT NOT NULL, proc TEXT NOT NULL, estado TEXT NOT NULL,
       pontos INTEGER NOT NULL DEFAULT 1, t INTEGER NOT NULL,
-      PRIMARY KEY (cod, chave))`)
+      PRIMARY KEY (cod, chave))`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS contas (
+      email TEXT PRIMARY KEY, nome TEXT NOT NULL DEFAULT '', sal TEXT NOT NULL,
+      chave TEXT NOT NULL, papel TEXT NOT NULL DEFAULT 'inspetor',
+      criada INTEGER NOT NULL, visto INTEGER NOT NULL DEFAULT 0)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS sessoes (
+      tok TEXT PRIMARY KEY, email TEXT NOT NULL, expira INTEGER NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS inspecoes (
+      id TEXT PRIMARY KEY, coord TEXT NOT NULL, tipo TEXT NOT NULL DEFAULT '',
+      nome TEXT NOT NULL DEFAULT '', gal TEXT NOT NULL DEFAULT '',
+      autor TEXT NOT NULL, veredito TEXT NOT NULL, nota TEXT NOT NULL DEFAULT '',
+      t INTEGER NOT NULL)`)
   ]);
   await db.prepare(`INSERT OR REPLACE INTO meta (chave,valor) VALUES ('esquema',?)`)
     .bind(String(ESQUEMA)).run();
@@ -513,6 +527,146 @@ async function retratoExp(db, cod, v, agora) {
     .filter(a => exp.modo === 'colaboracao' || a.v === v)
     .map(a => ({ k: a.chave, n: a.nome, g: a.gal, tipo: a.tipo, p: a.proc, e: a.estado, meu: a.v === v }));
   return { cod, modo: exp.modo, nome: exp.nome, dono: exp.dono === v, membros, achados };
+}
+
+// ================= contas, sessões e inspeções =================
+const SESSAO_MS = 1000 * 60 * 60 * 24 * 14;
+
+async function derivar(senha, sal) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey('raw', enc.encode(senha), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(sal), iterations: 120000, hash: 'SHA-256' }, base, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const aleatorio = (n) => {
+  const b = new Uint8Array(n); crypto.getRandomValues(b);
+  return [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+};
+const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e);
+
+async function quemE(db, tok) {
+  if (!tok) return null;
+  const s = await db.prepare(`SELECT * FROM sessoes WHERE tok=?`).bind(tok).first();
+  if (!s || s.expira < Date.now()) return null;
+  const c = await db.prepare(`SELECT email,nome,papel FROM contas WHERE email=?`).bind(s.email).first();
+  return c || null;
+}
+
+async function contas(request, env, url) {
+  await tabelas(env.DB);
+  const corpo = request.method === 'POST' ? await request.json().catch(() => null) : {};
+  const tok = (corpo && corpo.tok) || url.searchParams.get('tok') || '';
+  const acao = (corpo && corpo.acao) || url.searchParams.get('acao') || 'eu';
+  const agora = Date.now();
+
+  if (acao === 'eu') {
+    const eu = await quemE(env.DB, tok);
+    return json({ eu });
+  }
+
+  if (acao === 'registar') {
+    const email = String(corpo.email || '').toLowerCase().trim().slice(0, 80);
+    const senha = String(corpo.senha || '');
+    if (!emailOk(email)) return json({ erro: 'email inválido' }, 400);
+    if (senha.length < 8) return json({ erro: 'a senha precisa de pelo menos 8 caracteres' }, 400);
+    const ja = await env.DB.prepare(`SELECT email FROM contas WHERE email=?`).bind(email).first();
+    if (ja) return json({ erro: 'já existe conta com esse email' }, 409);
+    const quantas = await env.DB.prepare(`SELECT COUNT(*) AS n FROM contas`).first();
+    const papel = (quantas.n | 0) === 0 ? 'administrador' : 'inspetor';   // o primeiro fica com as chaves
+    const sal = aleatorio(16);
+    const chave = await derivar(senha, sal);
+    await env.DB.prepare(`INSERT INTO contas (email,nome,sal,chave,papel,criada,visto)
+      VALUES (?,?,?,?,?,?,?)`).bind(email, String(corpo.nome || '').slice(0, 40), sal, chave, papel, agora, agora).run();
+    const t = aleatorio(24);
+    await env.DB.prepare(`INSERT INTO sessoes (tok,email,expira) VALUES (?,?,?)`)
+      .bind(t, email, agora + SESSAO_MS).run();
+    return json({ tok: t, eu: { email, nome: corpo.nome || '', papel } });
+  }
+
+  if (acao === 'entrar') {
+    const email = String(corpo.email || '').toLowerCase().trim().slice(0, 80);
+    const c = await env.DB.prepare(`SELECT * FROM contas WHERE email=?`).bind(email).first();
+    if (!c) return json({ erro: 'email ou senha errados' }, 401);
+    const chave = await derivar(String(corpo.senha || ''), c.sal);
+    if (chave !== c.chave) return json({ erro: 'email ou senha errados' }, 401);
+    const t = aleatorio(24);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO sessoes (tok,email,expira) VALUES (?,?,?)`).bind(t, email, agora + SESSAO_MS),
+      env.DB.prepare(`UPDATE contas SET visto=? WHERE email=?`).bind(agora, email),
+      env.DB.prepare(`DELETE FROM sessoes WHERE expira < ?`).bind(agora)
+    ]);
+    return json({ tok: t, eu: { email: c.email, nome: c.nome, papel: c.papel } });
+  }
+
+  if (acao === 'sair') {
+    if (tok) await env.DB.prepare(`DELETE FROM sessoes WHERE tok=?`).bind(tok).run();
+    return json({ ok: true });
+  }
+
+  const eu = await quemE(env.DB, tok);
+  if (!eu) return json({ erro: 'sessão expirada' }, 401);
+
+  if (acao === 'lista') {
+    if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
+    const r = await env.DB.prepare(`SELECT email,nome,papel,criada,visto FROM contas ORDER BY criada`).all();
+    return json({ contas: r.results });
+  }
+
+  if (acao === 'papel') {
+    if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
+    const alvo = String(corpo.email || '').toLowerCase();
+    const papel = corpo.papel === 'administrador' ? 'administrador' : 'inspetor';
+    if (alvo === eu.email) return json({ erro: 'não pode mudar o seu próprio papel' }, 400);
+    await env.DB.prepare(`UPDATE contas SET papel=? WHERE email=?`).bind(papel, alvo).run();
+    return json({ ok: true });
+  }
+
+  return json({ erro: 'ação desconhecida' }, 400);
+}
+
+async function inspecoes(request, env, url) {
+  await tabelas(env.DB);
+  const corpo = request.method === 'POST' ? await request.json().catch(() => null) : {};
+  const tok = (corpo && corpo.tok) || url.searchParams.get('tok') || '';
+  const eu = await quemE(env.DB, tok);
+  if (!eu) return json({ erro: 'sessão expirada' }, 401);
+  const acao = (corpo && corpo.acao) || url.searchParams.get('acao') || 'listar';
+
+  if (acao === 'listar') {
+    const so = url.searchParams.get('minhas') === '1' || (corpo && corpo.minhas);
+    const r = so
+      ? await env.DB.prepare(`SELECT * FROM inspecoes WHERE autor=? ORDER BY t DESC LIMIT 200`).bind(eu.email).all()
+      : await env.DB.prepare(`SELECT * FROM inspecoes ORDER BY t DESC LIMIT 200`).all();
+    return json({ eu, inspecoes: r.results });
+  }
+
+  if (acao === 'criar') {
+    const coord = String(corpo.coord || '').toUpperCase().slice(0, 20);
+    if (!/^EXC-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(coord))
+      return json({ erro: 'coordenada mal formada' }, 400);
+    const veredito = ['confirmado', 'ajustar', 'quebrado'].includes(corpo.veredito) ? corpo.veredito : 'ajustar';
+    await env.DB.prepare(`INSERT INTO inspecoes (id,coord,tipo,nome,gal,autor,veredito,nota,t)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .bind(aleatorio(8), coord, String(corpo.tipo || '').slice(0, 40), String(corpo.nome || '').slice(0, 40),
+            String(corpo.gal || '').slice(0, 40), eu.email, veredito, String(corpo.nota || '').slice(0, 600), Date.now())
+      .run();
+    const r = await env.DB.prepare(`SELECT * FROM inspecoes ORDER BY t DESC LIMIT 200`).all();
+    return json({ eu, inspecoes: r.results });
+  }
+
+  if (acao === 'apagar') {
+    const id = String(corpo.id || '');
+    const alvo = await env.DB.prepare(`SELECT autor FROM inspecoes WHERE id=?`).bind(id).first();
+    if (!alvo) return json({ erro: 'não existe' }, 404);
+    if (alvo.autor !== eu.email && eu.papel !== 'administrador')
+      return json({ erro: 'só o autor ou um administrador apaga' }, 403);
+    await env.DB.prepare(`DELETE FROM inspecoes WHERE id=?`).bind(id).run();
+    const r = await env.DB.prepare(`SELECT * FROM inspecoes ORDER BY t DESC LIMIT 200`).all();
+    return json({ eu, inspecoes: r.results });
+  }
+
+  return json({ erro: 'ação desconhecida' }, 400);
 }
 
 export default {
