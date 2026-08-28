@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>COSMÓGRAFO — onde você está no universo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --vacuo:#04050B;
+    --luz:#E6ECFF;
+    --dim:#7A85A8;
+    --line:rgba(230,236,255,.18);
+    --dc:#6BE7A8;      /* dado científico */
+    --ds:#FFB454;      /* dado sintético */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--vacuo);color:var(--luz);overflow:hidden}
+  body{font-family:"IBM Plex Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  .shell{position:fixed;inset:0;pointer-events:none;display:grid;
+    grid-template-rows:auto 1fr auto;padding:clamp(14px,2.4vw,30px)}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+  .plate{background:rgba(4,5,11,.36);border-radius:5px;
+    -webkit-backdrop-filter:blur(9px) brightness(.36) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.36) saturate(.9)}
+  h1{font-family:"Chakra Petch",sans-serif;font-weight:700;text-transform:uppercase;
+    font-size:clamp(19px,4.2vw,40px);line-height:1;letter-spacing:.01em}
+  h1 em{display:block;font-style:normal;font-weight:500;font-family:"IBM Plex Mono",monospace;
+    font-size:clamp(8.5px,1.4vw,11px);letter-spacing:.3em;color:var(--dim);margin-top:.9em}
+  .galaxia{text-align:right;padding:9px 12px;border-radius:5px;max-width:56vw}
+  .galaxia b{display:block;font-family:"Chakra Petch",sans-serif;font-weight:700;
+    font-size:clamp(15px,3.4vw,26px);line-height:1.05;letter-spacing:.01em}
+  .galaxia span{display:block;font-size:10px;color:var(--dim);letter-spacing:.14em;margin-top:5px}
+
+  .bussola{pointer-events:auto;align-self:end;justify-self:start;display:flex;flex-direction:column;gap:5px;
+    padding:8px 11px;border-radius:5px;margin-bottom:9px;font-size:10.5px;color:var(--dim);
+    max-width:min(320px,80vw)}
+  .bussola span{display:inline-block;vertical-align:2px}
+  .linhaB{display:flex;align-items:center;gap:2px;pointer-events:auto}
+  .linhaB span{flex:1}
+  .linhaB.travada span{color:var(--luz)}
+  .linhaB b{cursor:pointer;padding:2px 6px;color:var(--dim);font-size:12px;line-height:1}
+  .linhaB b:hover{color:var(--dc)}
+  .linhaB.travada b{color:var(--ds)}
+  .bussola .vazio{opacity:.6}
+  .alvo{display:inline-block;width:11px;height:11px;margin-right:7px;vertical-align:-1px;
+    background:linear-gradient(to top,transparent 42%,var(--ds) 42%);clip-path:polygon(50% 0,100% 100%,0 100%)}
+  .alvo.dc{background:linear-gradient(to top,transparent 42%,var(--dc) 42%)}
+  .readout{align-self:end;display:flex;flex-wrap:wrap;gap:7px;row-gap:8px;margin-bottom:12px;font-size:11px}
+  .cell{padding:6px 9px 7px;border-radius:4px;background:rgba(4,5,11,.36);
+    border:1px solid rgba(230,236,255,.12);
+    -webkit-backdrop-filter:blur(9px) brightness(.36) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.36) saturate(.9)}
+  .cell span{display:block;color:var(--dim);font-size:9px;letter-spacing:.2em;margin-bottom:3px}
+  .cell b{font-weight:500;font-variant-numeric:tabular-nums;font-size:13px}
+
+  .deck{display:flex;gap:7px;flex-wrap:wrap;align-items:center;pointer-events:auto;
+    padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}
+  .group{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;
+    background:rgba(4,5,11,.82);backdrop-filter:blur(8px)}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    display:inline-block;text-decoration:none;line-height:normal;background:transparent;
+    color:var(--dim);border:0;border-right:1px solid var(--line);padding:6px 9px;cursor:pointer;
+    transition:.18s}
+  .group button:last-child{border-right:0}
+  button:hover,a.btn:hover{color:var(--luz);background:rgba(107,231,168,.14)}
+  button[aria-pressed="true"]{background:var(--dc);color:var(--vacuo)}
+  button:focus-visible,a.btn:focus-visible{outline:2px solid var(--dc);outline-offset:-2px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+  .hint{font-size:10px;color:var(--dim);letter-spacing:.08em;margin-left:auto;text-align:right;
+    padding:6px 9px;border-radius:5px;line-height:1.7;transition:opacity .8s}
+  .hint.gone{opacity:0}
+
+  /* assinatura da procedência, junto ao selo de versão */
+  #proc{position:fixed;left:calc(9px + env(safe-area-inset-left,0px));
+    bottom:calc(32px + env(safe-area-inset-bottom,0px));z-index:15;
+    display:flex;align-items:center;gap:5px;padding:4px 7px;border-radius:3px;cursor:pointer;
+    background:rgba(4,5,11,.4);border:1px solid var(--line);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    font:500 8.5px/1 "IBM Plex Mono",monospace;letter-spacing:.16em;transition:opacity .4s}
+  #proc b{font-weight:700}
+  #proc .dc{color:var(--dc)} #proc .ds{color:var(--ds)}
+  #proc .v{color:var(--dim)}
+  html.zen #proc{opacity:0;pointer-events:none}
+
+  .folha{position:fixed;inset:0;z-index:16;display:grid;place-items:center;pointer-events:auto;
+    background:radial-gradient(60% 60% at 50% 45%,rgba(4,5,11,.9),rgba(4,5,11,.98));
+    transition:opacity .4s}
+  .folha.off{opacity:0;pointer-events:none}
+  .folha[hidden]{display:none}
+  .cartao{max-width:min(430px,88vw);padding:24px 22px;border:1px solid var(--line);
+    border-radius:6px;background:rgba(4,5,11,.75);max-height:82vh;overflow:auto}
+  .cartao h2{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:15px;
+    text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px}
+  .cartao p{font-size:11.5px;line-height:1.85;color:var(--dim);margin-bottom:12px}
+  .cartao p b{color:var(--luz);font-weight:500}
+  .cartao .tag{display:inline-block;padding:2px 6px;border-radius:3px;font-weight:700;
+    font-size:9px;letter-spacing:.14em;margin-right:6px}
+  .tag.dc{background:rgba(107,231,168,.18);color:var(--dc)}
+  .tag.ds{background:rgba(255,180,84,.18);color:var(--ds)}
+  .cartao button{margin-top:8px;border:1px solid var(--dc);color:var(--luz);padding:11px 20px;
+    font-size:10px;letter-spacing:.24em;background:transparent}
+  .achados{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px}
+  .achados div{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--dim)}
+  .achados .nm{color:var(--luz)}
+  .achados .st{margin-left:auto;font-size:9px;letter-spacing:.1em}
+  .achados .dcol{margin-left:auto;font-size:10px;font-variant-numeric:tabular-nums;
+    color:var(--dc);min-width:62px;text-align:right}
+  .achados .st{margin-left:12px;min-width:74px;text-align:right}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+  .chip{font:inherit;font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+    border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--dim);
+    padding:5px 10px;cursor:pointer;transition:.15s}
+  .chip:hover{color:var(--luz);border-color:var(--luz)}
+  .chip.on{background:var(--dc);color:var(--vacuo);border-color:var(--dc)}
+  .chips .sep{width:1px;background:var(--line);margin:2px 4px}
+  .achados .pst{font-style:normal;color:var(--dim);font-size:9px;margin-left:6px}
+  .achados .acc{cursor:pointer;padding:2px 5px;color:var(--dim);font-size:11px;border-radius:3px}
+  .achados .acc:hover{color:var(--luz);background:rgba(230,236,255,.1)}
+  .achados .acc.rm:hover{color:#FF8A7A;background:rgba(255,138,122,.12)}
+  .achados .nm.vai{cursor:pointer}
+  .achados .nm.vai:hover{color:var(--dc)}
+  .catl{border-left:2px solid var(--line);padding:8px 0 8px 11px;margin-bottom:10px}
+  .catl.achado{border-left-color:var(--dc)}
+  .ct{display:flex;align-items:baseline;gap:8px}
+  .cn{font-size:12px;color:var(--luz)}
+  .catl.achado .cn{color:var(--dc)}
+  .cv{margin-left:auto;font-size:10px;color:var(--ds);font-variant-numeric:tabular-nums}
+  .cd{font-size:10.5px;color:var(--dim);line-height:1.65;margin:4px 0 6px}
+  .cf{display:flex;align-items:center;gap:8px}
+  .cf i{display:block;height:3px;background:var(--dim);border-radius:2px;min-width:3px}
+  .cf span{font-size:9px;color:var(--dim);letter-spacing:.08em}
+  .ajuda{color:var(--dc);cursor:pointer;font-weight:500;white-space:nowrap}
+  .caixaAjuda{border-left:2px solid var(--dc);padding:10px 0 2px 12px;margin:4px 0 14px}
+  .caixaAjuda[hidden]{display:none}
+  .caixaAjuda p{font-size:11px;margin-bottom:9px}
+  .onl{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--dc);
+    margin-right:6px;vertical-align:1px;box-shadow:0 0 6px var(--dc)}
+  .achados .linha.vai:hover{background:rgba(107,231,168,.1);border-radius:3px}
+  .linhaAj{display:flex;align-items:center;gap:6px;margin-bottom:9px}
+  .linhaAj span{flex:1;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .linhaAj button{border:1px solid var(--line);border-radius:3px;min-width:30px;font-size:13px;padding:6px 0}
+  .linhaAj b{min-width:76px;text-align:center;font-size:11px;color:var(--luz);font-variant-numeric:tabular-nums}
+  .readout .cell[data-clicavel]:hover{border-color:var(--dc)}
+  .st.vis{color:var(--dc)} .st.rec{color:var(--ds)}
+
+  @media (max-width:640px){ h1 em{letter-spacing:.2em} .galaxia{max-width:52vw} }
+  @media (pointer:coarse){ button,a.btn{padding:8px 10px;font-size:9.5px} }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Região do Grupo Local correspondente à sua posição na Terra"></canvas>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1>Cosmógrafo<em>grupo local · correspondência determinística</em></h1>
+    </div>
+    <div class="galaxia plate">
+      <b id="gNome">—</b>
+      <span id="gDist">—</span>
+    </div>
+  </header>
+
+  <div class="bussola plate" id="bussola"></div>
+  <div class="readout" style="pointer-events:none">
+    <div class="cell"><span>LUGAR</span><b id="rEst">—</b></div>
+    <div class="cell"><span>TIPO</span><b id="rTipo">—</b></div>
+    <div class="cell"><span>MODO</span><b id="rModo">—</b></div>
+    <div class="cell"><span>ESCALA</span><b id="rEsc">—</b></div>
+    <div class="cell"><span>PROFUNDIDADE</span><b id="rProf">normal</b></div>
+    <div class="cell"><span>VELOCIDADE</span><b id="rVel">—</b></div>
+    <div class="cell"><span>PONTARIA</span><b id="rAlvo">—</b></div>
+    <div class="cell"><span>ESTA ÁREA</span><b id="rJa">—</b></div>
+    <div class="cell"><span>ACHADOS</span><b id="rAch">0</b></div>
+    <div class="cell" data-clicavel style="pointer-events:auto"><span>SALTOS ⚙</span><b id="rSalto">—</b></div>
+    <div class="cell"><span>EXPEDIÇÃO</span><b id="rExp">—</b></div>
+  </div>
+
+  <div class="deck">
+    <div class="group">
+      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    </div>
+    <div class="group" role="group" aria-label="Modo de exploração">
+      <button data-modo="fisica">Física</button>
+      <button data-modo="estatica" aria-pressed="true">Estática</button>
+    </div>
+    <div class="group">
+      <button id="bMarcar">Registar</button>
+      <button id="bSalto" title="Transporte para um lugar aleatório">Saltar</button>
+      <button id="bCatalogo">Catálogo</button>
+      <button id="bMapa">Mapa</button>
+      <button id="bExp">Expedição</button>
+      <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    </div>
+    <p class="hint plate" id="hint">arraste para olhar em volta · a bússola aponta o que vale a pena</p>
+  </div>
+</div>
+
+<div id="proc" role="button" tabindex="0" aria-label="Procedência dos dados e versão da região">
+  <b id="procTag" class="ds">DS</b><span class="v" id="procV">r—</span>
+</div>
+
+<div class="folha" id="folha" hidden>
+  <div class="cartao" id="folhaCorpo"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'), g=cv.getContext('2d');
+let W=0,H=0,dpr=1;
+
+// ================= o Grupo Local =================
+// distâncias em anos-luz, valores medidos e publicados (DC)
+const GAL=[
+  {n:'Via Láctea',            d:0,        cor:[190,205,255], tipo:'espiral barrada'},
+  {n:'Sagitário Anã Elíptica',d:70000,    cor:[255,190,140], tipo:'anã esferoidal'},
+  {n:'Grande Nuvem de Magalhães', d:163000, cor:[150,215,255], tipo:'irregular'},
+  {n:'Pequena Nuvem de Magalhães', d:200000, cor:[135,190,240], tipo:'irregular anã'},
+  {n:'Ursa Menor Anã',        d:200000,   cor:[210,200,255], tipo:'anã esferoidal'},
+  {n:'Draco Anã',             d:260000,   cor:[180,170,235], tipo:'anã esferoidal'},
+  {n:'Sextans Anã',           d:290000,   cor:[235,200,220], tipo:'anã esferoidal'},
+  {n:'Escultor Anã',          d:290000,   cor:[200,235,225], tipo:'anã esferoidal'},
+  {n:'Carina Anã',            d:330000,   cor:[255,215,180], tipo:'anã esferoidal'},
+  {n:'Fornax Anã',            d:460000,   cor:[230,180,255], tipo:'anã esferoidal'},
+  {n:'Leo II',                d:690000,   cor:[190,230,255], tipo:'anã esferoidal'},
+  {n:'Leo I',                 d:820000,   cor:[255,205,225], tipo:'anã esferoidal'},
+  {n:'NGC 6822',              d:1600000,  cor:[255,225,170], tipo:'irregular anã'},
+  {n:'IC 10',                 d:2200000,  cor:[255,175,175], tipo:'irregular de rebentação'},
+  {n:'Galáxia de Andrómeda',  d:2540000,  cor:[175,195,255], tipo:'espiral'},
+  {n:'Galáxia do Triângulo',  d:2730000,  cor:[190,255,225], tipo:'espiral'}
+];
+
+// marcos reais: objetos observados, com o que deles se sabe (DC)
+const MARCOS=[
+  {g:0, n:'Sagitário A*', f:'buraco negro supermassivo no centro da Via Láctea, a cerca de 26 000 anos-luz'},
+  {g:0, n:'Nebulosa de Órion', f:'berçário de estrelas a 1 344 anos-luz, visível a olho nu'},
+  {g:0, n:'Enxame das Plêiades', f:'enxame aberto jovem, a 444 anos-luz'},
+  {g:2, n:'Nebulosa da Tarântula', f:'a região de formação estelar mais luminosa do Grupo Local'},
+  {g:2, n:'R136a1', f:'uma das estrelas mais maciças conhecidas, no coração da Tarântula'},
+  {g:2, n:'SN 1987A', f:'a supernova mais próxima observada desde a invenção do telescópio'},
+  {g:3, n:'NGC 346', f:'enxame jovem na Pequena Nuvem, fábrica de estrelas maciças'},
+  {g:14,n:'Núcleo duplo de Andrómeda', f:'duas concentrações estelares em torno do buraco negro central'},
+  {g:14,n:'NGC 206', f:'a maior nuvem de estrelas jovens de Andrómeda'},
+  {g:15,n:'NGC 604', f:'região de hidrogénio ionizado quarenta vezes maior que Órion'},
+  {g:12,n:'Nebulosa Hubble V', f:'região de formação estelar intensa em NGC 6822'},
+  {g:1, n:'Messier 54', f:'enxame globular no coração da Anã de Sagitário'}
+];
+
+const TIPOS=[
+  {n:'mundo com atmosfera', peso:7, glifo:'planeta', notavel:3,
+   d:'Corpo rochoso com envelope gasoso. Textura, clima e satélite gerados a partir da posição.'},
+  {n:'nebulosa de emissão', peso:4, glifo:'nebulosa', notavel:3,
+   d:'Gás ionizado por estrelas jovens, com filamentos e faixas de poeira que travam a luz.'},
+  {n:'buraco negro estelar', peso:2, glifo:'poco', notavel:4,
+   d:'Disco de acreção com feixe relativista, anel de fotões e a sombra do horizonte.'},
+  {n:'sistema planetário', peso:20, glifo:'sistema', notavel:2,
+   d:'Uma estrela e as suas órbitas. O berço mais comum de tudo o resto.'},
+  {n:'planeta errante',    peso:11, glifo:'sistema', notavel:2,
+   d:'Mundo sem estrela, arrancado do seu sistema. Frio, escuro e silencioso.'},
+  {n:'nuvem molecular',    peso:12, glifo:'nuvem',   notavel:1,
+   d:'Berço frio de hidrogénio onde as estrelas ainda não acenderam.'},
+  {n:'berçário estelar',   peso:7,  glifo:'nuvem',   notavel:2,
+   d:'Nuvem em colapso, com estrelas a nascer às centenas.'},
+  {n:'enxame globular',    peso:9,  glifo:'enxame',  notavel:1,
+   d:'Centenas de milhares de estrelas velhas presas pela própria gravidade.'},
+  {n:'campo de estrelas',  peso:15, glifo:'campo',   notavel:0,
+   d:'Povoação dispersa. O tecido comum de uma galáxia.'},
+  {n:'braço espiral',      peso:7,  glifo:'braco',   notavel:1,
+   d:'Onda de densidade que comprime o gás e acende estrelas à passagem.'},
+  {n:'remanescente de supernova', peso:6, glifo:'anel', notavel:2,
+   d:'A casca em expansão do que sobrou de uma estrela morta.'},
+  {n:'anomalia dimensional', peso:1, glifo:'poco',   notavel:4,
+   d:'Métrica que não fecha. Raríssima, e ninguém sabe explicar o que se mede lá dentro.'},
+  {n:'vazio intergaláctico', peso:8, glifo:'vazio',  notavel:0,
+   d:'Quase nada por muito espaço. O fundo sobre o qual tudo o resto se destaca.'}
+];
+// raridade define o valor: o que aparece pouco vale muito
+(function(){
+  const total=TIPOS.reduce((a,e)=>a+e.peso,0);
+  TIPOS.forEach(e=>{ e.freq=e.peso/total; e.valor=Math.max(1,Math.round(Math.pow(1/e.freq,0.72)/1.6)); });
+})();
+// camadas de hipótese: tudo isto é sintético e vai assinalado como tal
+const QUIMICA=['metano e amónia','água em subsuperfície','silicatos e ferro','enxofre vulcânico',
+  'hidrogénio metálico','carbono cristalizado','azoto líquido','cloretos em salmoura',
+  'atmosfera de dióxido de carbono','vapores de silício'];
+const CIVIL=['sem sinal de vida','microbiologia extremófila','biosfera vegetal','vida aquática complexa',
+  'sociedade pré-industrial','civilização de rádio','civilização orbital','inteligência distribuída',
+  'ruínas sem construtores','sinal repetido sem origem'];
+const TECNO=['nenhuma','ferramentas de pedra','metalurgia','máquinas a vapor','eletricidade',
+  'foguetes químicos','velas solares','dobra de espaço teórica','esferas de captação estelar',
+  'engenharia de horizontes'];
+const DIMENSAO=['estável','maré gravitacional forte','tempo dilatado','anisotropia luminosa',
+  'eco de matéria escura','fenda métrica'];
+const PREFIXO=['Kepler','Vega','Rigel','Tycho','Mira','Altair','Deneb','Antares','Spica','Bellatrix',
+  'Elnath','Sadr','Izar','Merak','Talitha','Alcor','Nashira','Sabik','Zosma','Yed'];
+
+function pesado(lista,r){
+  const total=lista.reduce((a,e)=>a+e.peso,0);
+  let acc=0, alvo=r*total;
+  for(const e of lista){ acc+=e.peso; if(alvo<=acc) return e; }
+  return lista[0];
+}
+// ================= determinismo =================
+function hash(x,y,s){
+  let h=Math.imul(x|0,374761393)^Math.imul(y|0,668265263)^Math.imul(s|0,2147483647);
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967296;
+}
+function ruido(x,y,s){
+  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=hash(xi,yi,s), b=hash(xi+1,yi,s), c=hash(xi,yi+1,s), d=hash(xi+1,yi+1,s);
+  return (a*(1-u)+b*u)*(1-v)+(c*(1-u)+d*u)*v;
+}
+function fbm(x,y,s){
+  let t=0,a=.5,f=1;
+  for(let i=0;i<4;i++){ t+=a*ruido(x*f,y*f,s+i*7); f*=2.03; a*=.5; }
+  return t;
+}
+// a que galáxia pertence este pedaço de Terra: manchas contínuas, de centenas de km
+function galaxiaEm(lat,lon){
+  const x=lon/2.2, y=lat/2.2;
+  const wx=x+fbm(x*0.7,y*0.7,11)*1.6, wy=y+fbm(x*0.7+40,y*0.7+40,29)*1.6;
+  let melhor=0, md=1e9;
+  for(let i=0;i<GAL.length;i++){
+    const sx=(hash(i,0,5)-0.5)*180/2.2, sy=(hash(0,i,9)-0.5)*90/2.2;
+    const d=(wx-sx)*(wx-sx)+(wy-sy)*(wy-sy)*1.6;
+    if(d<md){ md=d; melhor=i; }
+  }
+  return melhor;
+}
+// estrutura à escala do passo: muda a cada ~500 m
+
+// há aqui um marco real? raro, e só na galáxia certa
+function marcoEm(lat,lon,gi){
+  const cel=Math.floor(lon/0.0009)*7919 ^ Math.floor(lat/0.0009)*104729;
+  const r=hash(cel,gi,777);
+  const daGal=MARCOS.filter(m=>m.g===gi);
+  if(!daGal.length || r>0.0055) return null;
+  return daGal[Math.floor(hash(cel,gi,31)*daGal.length)%daGal.length];
+}
+// tudo o que existe num pedaço de céu, gerado sempre igual a partir da célula
+function celulaDe(lat,lon,q){ return [Math.floor(lon/q), Math.floor(lat/q)]; }
+function lugarEm(lat,lon,q,gi){
+  const [cx,cy]=celulaDe(lat,lon,q);
+  const s0=(cx*73856093 ^ cy*19349663)>>>0;
+  const r=k=>hash(cx,cy,s0+k);
+  const tipo=pesado(TIPOS, fbm(cx*0.35,cy*0.35,101));
+  const marco=marcoEm(lat,lon,gi);
+  const nome = marco ? marco.n
+    : PREFIXO[Math.floor(r(1)*PREFIXO.length)]+'-'+(100+Math.floor(r(2)*899))
+      +(r(3)<0.3?' '+'abcdef'[Math.floor(r(4)*6)]:'');
+  const habitavel = tipo.glifo==='sistema' || tipo.glifo==='planeta';
+  const camadas = habitavel ? {
+    quimica: QUIMICA[Math.floor(r(5)*QUIMICA.length)],
+    civil:   CIVIL[Math.floor(Math.pow(r(6),1.9)*CIVIL.length)],
+    tecno:   TECNO[Math.floor(Math.pow(r(7),2.4)*TECNO.length)],
+    dim:     DIMENSAO[Math.floor(Math.pow(r(8),2.2)*DIMENSAO.length)],
+    massa:   (0.2+r(9)*11).toFixed(2)+' massas terrestres',
+    temp:    Math.round(-210+r(10)*680)+' °C'
+  } : {
+    dim: DIMENSAO[Math.floor(Math.pow(r(8),2.2)*DIMENSAO.length)],
+    escala: Math.round(2+r(11)*400)+' anos-luz de extensão'
+  };
+  const notavel = (marco?4:0) + tipo.notavel
+    + (camadas.civil && CIVIL.indexOf(camadas.civil)>4 ? 2:0)
+    + (camadas.dim && camadas.dim!=='estável' ? 1:0);
+  // âncora: o ponto exato do objeto dentro da célula, para haver o que acertar
+  const ala=(cy+0.18+r(12)*0.64)*q, alo=(cx+0.18+r(13)*0.64)*q;
+  return {cx,cy,q,tipo,nome,marco,camadas,notavel,
+          ancora:{la:ala,lo:alo},
+          chave: gi+':'+cx+':'+cy,
+          proc: marco?'DC':'DS'};
+}
+// o que há por perto que valha a pena andar até lá
+function varrerPerto(lat,lon,q,gi,alcance){
+  const achados=[];
+  for(let dy=-alcance;dy<=alcance;dy++){
+    for(let dx=-alcance;dx<=alcance;dx++){
+      if(!dx&&!dy) continue;
+      const la=lat+dy*q, lo=lon+dx*q;
+      const g2=galaxiaEm(la,lo);
+      const l=lugarEm(la,lo,q,g2);
+      if(l.notavel<3) continue;
+      const met=distancia(lat,lon,l.ancora.la,l.ancora.lo);
+      const rumo=Math.atan2(l.ancora.lo-lon, l.ancora.la-lat);
+      achados.push({l,met,rumo,gal:g2,la:l.ancora.la,lo:l.ancora.lo});
+    }
+  }
+  achados.sort((a,b)=>b.l.notavel-a.l.notavel || a.met-b.met);
+  return achados.slice(0,3);
+}
+function versaoRegiao(lat,lon){
+  const cel=Math.floor(lon/0.05)*13 ^ Math.floor(lat/0.05)*29;
+  return 'r'+(1+Math.floor(hash(cel,0,17)*9))+'.'+Math.floor(hash(cel,1,23)*10);
+}
+
+// ================= posição =================
+let lat=0, lon=0, temPos=false, modo='estatica';
+let olhar=0, olharAlvo=0, rumoAndar=0;      // para onde a cabeça aponta, e para onde o corpo vai
+let vel=0, ultimaPos=null, escalaAtual=0.005;
+let paradoDesde=Date.now(), watch=null;
+const ESCALAS=[
+  {lim:1.4,  q:0.0009, nome:'passo',    raio:100},
+  {lim:6,    q:0.004,  nome:'passeio',  raio:400},
+  {lim:20,   q:0.02,   nome:'bicicleta',raio:2000},
+  {lim:1e9,  q:0.09,   nome:'estrada',  raio:9000}
+];
+function escalaPara(v){ for(const e of ESCALAS) if(v<e.lim) return e; return ESCALAS[3]; }
+
+function irPara(nlat,nlon,fisico){
+  if(fisico && temPos && ultimaPos){
+    const dt=(Date.now()-ultimaPos.t)/1000;
+    const dm=distancia(ultimaPos.lat,ultimaPos.lon,nlat,nlon);
+    if(dt>0.4) vel=vel*0.6+(dm/dt)*0.4;
+    if(dm>3){
+      paradoDesde=Date.now();
+      rumoAndar=Math.atan2(nlon-ultimaPos.lon, nlat-ultimaPos.lat);
+    }
+  }
+  lat=nlat; lon=nlon;
+  if(fisico) ultimaPos={lat,lon,t:Date.now()};
+  atualizar();
+}
+function distancia(a1,o1,a2,o2){
+  const R=6371000, r=Math.PI/180;
+  const dl=(a2-a1)*r, dg=(o2-o1)*r;
+  const s=Math.sin(dl/2)**2+Math.cos(a1*r)*Math.cos(a2*r)*Math.sin(dg/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+}
+function ligarGPS(){
+  if(!navigator.geolocation){ nota('este navegador não dá posição'); return; }
+  watch=navigator.geolocation.watchPosition(p=>{
+    temPos=true;
+    irPara(p.coords.latitude, p.coords.longitude, true);
+    if(p.coords.speed!=null && !isNaN(p.coords.speed)) vel=Math.max(vel,p.coords.speed);
+  }, e=>{
+    nota('posição recusada — fica em modo estático');
+    escolherModo('estatica');
+  }, {enableHighAccuracy:true, maximumAge:4000, timeout:12000});
+}
+function desligarGPS(){ if(watch!=null){ navigator.geolocation.clearWatch(watch); watch=null; } }
+
+// ================= achados =================
+let achados=[];
+try{ achados=JSON.parse(localStorage.getItem('cosmo_achados')||'[]'); }catch(e){ achados=[]; }
+function guardar(){ try{ localStorage.setItem('cosmo_achados',JSON.stringify(achados.slice(-300))); }catch(e){} }
+// quanto mais perto do ponto exato, maior o prémio
+const PREMIOS=[
+  {lim:1,    n:'cristal de precisão', pts:5},
+  {lim:5,    n:'amostra profunda',    pts:4},
+  {lim:25,   n:'amostra de campo',    pts:3},
+  {lim:100,  n:'leitura remota',      pts:2},
+  {lim:500,  n:'eco distante',        pts:1},
+  {lim:1e9,  n:'registo aproximado',  pts:0}
+];
+function premioPara(d){ for(const p of PREMIOS) if(d<=p.lim) return p; return PREMIOS[5]; }
+function distAncora(){
+  const l=regiao.lugar;
+  return l ? distancia(lat,lon,l.ancora.la,l.ancora.lo) : 1e9;
+}
+function fmtDist(d){
+  return d<1 ? d.toFixed(2)+' m' : d<1000 ? Math.round(d)+' m' : (d/1000).toFixed(2)+' km';
+}
+function registar(){
+  const {gi,esc,lugar}=regiao;
+  const quieto=(Date.now()-paradoDesde)>20000 && vel<1.4;
+  const estado=(modo==='fisica' && temPos && quieto) ? 'visitado' : 'reconhecido';
+  const d=distAncora(), pr=premioPara(d);
+  const ja=achados.find(a=>a.k===lugar.chave);
+  if(ja){
+    let mudou=false, msg=[];
+    if(estado==='visitado' && ja.e!=='visitado'){ ja.e='visitado'; mudou=true; msg.push('confirmado no terreno'); }
+    if(d < (ja.d===undefined?1e9:ja.d)){
+      ja.d=d; ja.pr=pr.n; ja.prp=pr.pts; mudou=true;
+      msg.push('pontaria melhorada para '+fmtDist(d)+' — '+pr.n);
+    }
+    if(mudou){ ja.t=Date.now(); guardar(); sincronizarExp(ja); nota(lugar.nome+': '+msg.join(' · ')); }
+    else nota('já catalogado a '+fmtDist(ja.d===undefined?0:ja.d)+' — aproxime-se para melhorar');
+  } else {
+    const novo={k:lugar.chave, n:lugar.nome, g:GAL[gi].n, tipo:lugar.tipo.n,
+                p:lugar.proc, e:estado, t:Date.now(), gi,
+                la:lugar.ancora.la, lo:lugar.ancora.lo, q:esc.q,
+                d:d, pr:pr.n, prp:pr.pts, vr:lugar.tipo.valor};
+    achados.push(novo); verificarVizinho(novo); guardar(); sincronizarExp(novo);
+    nota((estado==='visitado'?'visitado ':'reconhecido ')+'a '+fmtDist(d)+' · '+pr.n);
+  }
+  abrirFicha(lugar,gi);
+  atualizar();
+}
+// estudos: tarefas que dão prémio quando cumpridas
+function estudosDe(lugar){
+  const e=estudos[lugar.chave]||{obs:0,volta:0,vizinho:0};
+  return [
+    {id:'obs', n:'observar 30 segundos no sítio', ok:e.obs>=1},
+    {id:'volta', n:'voltar noutro dia', ok:e.volta>=1},
+    {id:'vizinho', n:'catalogar um vizinho do mesmo tipo', ok:e.vizinho>=1}
+  ];
+}
+function marcarEstudo(chave,id){
+  const e=estudos[chave]||{obs:0,volta:0,vizinho:0};
+  if(e[id]) return false;
+  e[id]=1; estudos[chave]=e; guardarEstudos();
+  const a=achados.find(x=>x.k===chave); if(a) sincronizarExp(a);
+  return true;
+}
+function nota(t){
+  const h=document.getElementById('hint');
+  h.textContent=t; h.classList.remove('gone');
+  clearTimeout(nota._t); nota._t=setTimeout(()=>h.classList.add('gone'),4200);
+}
+
+// ================= leitura =================
+const el=i=>document.getElementById(i);
+let regiao={}, perto=[], estudos={};
+// saltos: o transporte para lugar aleatório custa crédito, e o crédito volta com o tempo
+const TETOS=[1,3,5,8,12,20,'∞'];
+const CICLOS_S=[30,60,120,300,600,1200,3600];    // segundos entre créditos
+let iTeto=2, iCiclo=3;
+let SALTO_MAX=TETOS[iTeto], SALTO_MS=CICLOS_S[iCiclo]*1000;
+let saltos=5, saltoT=Date.now();
+const semLimite=()=>TETOS[iTeto]==='∞';
+try{
+  const c=JSON.parse(localStorage.getItem('cosmo_cfg')||'null');
+  if(c){ iTeto=c.t??iTeto; iCiclo=c.c??iCiclo;
+    SALTO_MAX=TETOS[iTeto]; SALTO_MS=CICLOS_S[iCiclo]*1000; }
+}catch(e){}
+function guardarCfg(){ try{ localStorage.setItem('cosmo_cfg',JSON.stringify({t:iTeto,c:iCiclo})); }catch(e){} }
+try{
+  const g=JSON.parse(localStorage.getItem('cosmo_saltos')||'null');
+  if(g){ saltos=g.s; saltoT=g.t; }
+}catch(e){}
+function guardarSaltos(){ try{ localStorage.setItem('cosmo_saltos',JSON.stringify({s:saltos,t:saltoT})); }catch(e){} }
+function reporSaltos(){
+  if(semLimite()) return;
+  const ganho=Math.floor((Date.now()-saltoT)/SALTO_MS);
+  if(ganho>0 && saltos<SALTO_MAX){
+    saltos=Math.min(SALTO_MAX, saltos+ganho); saltoT=Date.now(); guardarSaltos();
+  } else if(saltos>=SALTO_MAX) saltoT=Date.now();
+}
+function saltar(){
+  reporSaltos();
+  if(!semLimite() && saltos<=0){
+    const falta=Math.ceil((SALTO_MS-(Date.now()-saltoT))/60000);
+    nota('sem créditos de salto — o próximo chega em '+falta+' min'); return;
+  }
+  if(!semLimite()){ saltos--; saltoT=Date.now(); guardarSaltos(); }
+  if(modo==='fisica'){ escolherModo('estatica'); }
+  // procura um destino noutra galáxia: saltar para a mesma seria desperdiçar crédito
+  const atual=galaxiaEm(lat,lon);
+  let nlat=lat, nlon=lon;
+  for(let i=0;i<40;i++){
+    nlat=Math.asin(Math.random()*2-1)*180/Math.PI;
+    nlon=Math.random()*360-180;
+    if(galaxiaEm(nlat,nlon)!==atual) break;
+  }
+  irPara(nlat,nlon,false);
+  deriva+=180;                       // um empurrão visual, para se sentir o salto
+  const g=galaxiaEm(lat,lon);
+  nota('salto para '+GAL[g].n+(semLimite()?' · saltos sem limite':' · restam '+saltos+' créditos'));
+}
+try{ estudos=JSON.parse(localStorage.getItem('cosmo_estudos')||'{}'); }catch(e){ estudos={}; }
+function guardarEstudos(){ try{ localStorage.setItem('cosmo_estudos',JSON.stringify(estudos)); }catch(e){} }
+
+function atualizar(){
+  const gi=galaxiaEm(lat,lon);
+  const esc=escalaPara(vel);
+  escalaAtual=esc.q;
+  const lugar=lugarEm(lat,lon,esc.q,gi);
+  regiao={gi,esc,lugar};
+  perto=varrerPerto(lat,lon,esc.q,gi,3);
+
+  el('gNome').textContent=GAL[gi].n;
+  el('gDist').textContent = GAL[gi].d===0 ? 'a nossa casa · '+GAL[gi].tipo
+    : (GAL[gi].d>=1e6 ? (GAL[gi].d/1e6).toFixed(2)+' milhões de anos-luz'
+                      : Math.round(GAL[gi].d/1000)+' mil anos-luz') + ' · ' + GAL[gi].tipo;
+  el('rEst').textContent=lugar.nome;
+  el('rTipo').textContent=lugar.tipo.n;
+  el('rModo').textContent = modo==='fisica' ? (temPos?'físico':'à espera de sinal') : 'estático';
+  el('rEsc').textContent = esc.nome+' · '+esc.raio+' m';
+  el('rVel').textContent = modo==='fisica' ? (vel*3.6).toFixed(1)+' km/h' : '—';
+  el('rAch').textContent = achados.length;
+  const d=distAncora(), pr=premioPara(d);
+  const ja=achados.find(a=>a.k===lugar.chave);
+  const pAlvo=el('rAlvo');
+  pAlvo.textContent=fmtDist(d)+' · '+pr.n;
+  pAlvo.style.color = pr.pts>=4?'var(--dc)' : pr.pts>=2?'var(--luz)' : 'var(--dim)';
+  const rj=el('rJa');
+  if(ja){
+    rj.textContent = 'sim · '+fmtDist(ja.d===undefined?0:ja.d)+(ja.e==='visitado'?' · visitado':'');
+    rj.style.color='var(--ds)';
+  } else { rj.textContent='por registar'; rj.style.color='var(--dim)'; }
+  reporSaltos();
+  el('rSalto').textContent = semLimite() ? '∞' : (saltos+' / '+SALTO_MAX);
+
+  const tag=el('procTag');
+  tag.textContent=lugar.proc; tag.className = lugar.proc==='DC' ? 'dc':'ds';
+  el('procV').textContent=versaoRegiao(lat,lon);
+  desenharBussola();
+}
+// travas: dois alvos que não se perdem quando outros ficam mais perto
+let travas=[];
+function travar(la,lo,nome,proc){
+  if(travas.length>=2){ nota('já tem duas travas — solte uma primeiro'); return; }
+  if(travas.some(t=>t.nome===nome)) return;
+  travas.push({la,lo,nome,proc});
+  nota('travado: '+nome+' — a bússola não o larga');
+  desenharBussola();
+}
+function soltar(i){ travas.splice(i,1); desenharBussola(); }
+function rumoPara(la,lo){ return Math.atan2(lo-lon, la-lat); }
+
+function desenharBussola(){
+  const b=el('bussola');
+  const linhas=[];
+  travas.forEach((t,i)=>{
+    const met=distancia(lat,lon,t.la,t.lo);
+    const gr=Math.round((rumoPara(t.la,t.lo)-(modo==='fisica'?olhar:0))*180/Math.PI);
+    linhas.push('<div class="linhaB travada">'+
+      '<i class="alvo'+(t.proc==='DC'?' dc':'')+'" style="transform:rotate('+gr+'deg)"></i>'+
+      '<span>'+t.nome+' · '+(met<1000?Math.round(met)+' m':(met/1000).toFixed(1)+' km')+'</span>'+
+      '<b class="solta" data-i="'+i+'" title="soltar">✕</b></div>');
+  });
+  const livres=3-travas.length;
+  perto.filter(p=>!travas.some(t=>t.nome===p.l.nome)).slice(0,livres).forEach(p=>{
+    const gr=Math.round((p.rumo-(modo==='fisica'?olhar:0))*180/Math.PI);
+    linhas.push('<div class="linhaB" data-la="'+p.la+'" data-lo="'+p.lo+'" data-n="'+p.l.nome+
+      '" data-p="'+p.l.proc+'">'+
+      '<i class="alvo'+(p.l.proc==='DC'?' dc':'')+'" style="transform:rotate('+gr+'deg)"></i>'+
+      '<span>'+p.l.nome+' · '+Math.round(p.met)+' m</span><b class="trava" title="travar">⌖</b></div>');
+  });
+  b.innerHTML = linhas.length ? linhas.join('') : '<span class="vazio">nada de notável em volta</span>';
+  b.querySelectorAll('.solta').forEach(x=>x.onclick=()=>soltar(+x.dataset.i));
+  b.querySelectorAll('.linhaB[data-n]').forEach(l=>{
+    l.querySelector('.trava').onclick=()=>travar(+l.dataset.la,+l.dataset.lo,l.dataset.n,l.dataset.p);
+  });
+}
+
+// ================= arte dos corpos =================
+// Três corpos com desenho próprio. O resto do céu continua esquemático,
+// e serve de contraste: encontrar um destes tem de se notar.
+
+// ---------- buraco negro: disco, feixe Doppler e anel de fotões ----------
+function desenharBuraco(mx,my,R,cor,t,sd){
+  const rot=t/2600 + sd*6.28;
+  const inc=0.30;                       // inclinação do disco visto de perto
+  // brilho difuso do disco a envolver tudo
+  const halo=g.createRadialGradient(mx,my,R*0.22,mx,my,R*1.9);
+  halo.addColorStop(0,'rgba(255,190,120,.22)');
+  halo.addColorStop(.45,'rgba(255,130,60,.08)');
+  halo.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=halo; g.beginPath(); g.arc(mx,my,R*1.9,0,6.283); g.fill();
+
+  // parte do disco atrás do horizonte, curvada por cima pela lente
+  g.save(); g.beginPath(); g.rect(mx-R*2.4,my-R*2.4,R*4.8,R*2.4); g.clip();
+  for(let k=0;k<40;k++){
+    const a=(k/40)*Math.PI;
+    const rr=R*(1.05+0.5*Math.sin(a));
+    g.strokeStyle='rgba(255,'+(150+k)+',90,'+(0.05+0.05*Math.sin(a))+')';
+    g.lineWidth=R*0.05;
+    g.beginPath(); g.ellipse(mx,my,rr,rr*0.30,0,Math.PI,Math.PI*2); g.stroke();
+  }
+  g.restore();
+
+  // disco de acreção: anéis quentes com feixe relativista de um dos lados
+  for(let k=0;k<64;k++){
+    const f=k/64;
+    const rr=R*(0.62+f*1.35);
+    const quente=1-f;
+    for(let seg=0;seg<26;seg++){
+      const a0=(seg/26)*6.283+rot*(0.5+quente*1.6);
+      const a1=a0+6.283/26*0.96;
+      // Doppler: o lado que se aproxima brilha muito mais
+      const doppler=0.28+0.72*Math.pow((Math.cos(a0)+1)/2,2.2);
+      const br=(0.05+0.5*quente)*doppler;
+      g.strokeStyle='rgba('+Math.round(255)+','+Math.round(120+130*quente*doppler)+','
+        +Math.round(40+90*quente*doppler*doppler)+','+br.toFixed(3)+')';
+      g.lineWidth=R*0.035;
+      g.beginPath(); g.ellipse(mx,my,rr,rr*inc,0,a0,a1); g.stroke();
+    }
+  }
+  // sombra do horizonte
+  const sombra=g.createRadialGradient(mx,my,R*0.30,mx,my,R*0.66);
+  sombra.addColorStop(0,'#000'); sombra.addColorStop(.82,'#000');
+  sombra.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=sombra; g.beginPath(); g.arc(mx,my,R*0.66,0,6.283); g.fill();
+  // anel de fotões
+  g.strokeStyle='rgba(255,225,180,.92)'; g.lineWidth=Math.max(1.2,R*0.017);
+  g.beginPath(); g.arc(mx,my,R*0.52,0,6.283); g.stroke();
+  g.strokeStyle='rgba(255,200,140,.32)'; g.lineWidth=Math.max(1,R*0.045);
+  g.beginPath(); g.arc(mx,my,R*0.53,0,6.283); g.stroke();
+  // estrelas de fundo esticadas pela lente
+  for(let k=0;k<48;k++){
+    const a=hash(k,sd*1000|0,3)*6.283, d=R*(0.75+hash(k,7,9)*1.6);
+    const w=0.10+hash(k,11,13)*0.16;
+    g.strokeStyle='rgba(200,220,255,'+(0.12+hash(k,3,5)*0.3)+')';
+    g.lineWidth=1.1;
+    g.beginPath(); g.arc(mx,my,d,a,a+w); g.stroke();
+  }
+}
+
+// ---------- nebulosa: camadas de gás, filamentos, faixas escuras ----------
+function desenharNebulosa(mx,my,R,cor,t,sd){
+  const q=(k)=>hash(k,sd*997|0,k*31+7);
+  g.save();
+  g.globalCompositeOperation='lighter';
+  // dois gases: hidrogénio ionizado e oxigénio duplamente ionizado
+  const gases=[[255,88,110],[64,220,210],[150,120,255]];
+  for(let camada=0;camada<3;camada++){
+    const G=gases[camada];
+    const n=camada===2?10:22;
+    for(let i=0;i<n;i++){
+      const a=q(i+camada*40)*6.283 + t/(9000+camada*4000);
+      const dist=R*(0.15+q(i+100+camada*40)*1.15);
+      const raio=R*(0.30+q(i+200+camada*40)*0.75);
+      const x=mx+Math.cos(a)*dist*(1+0.25*Math.sin(t/5200+i));
+      const y=my+Math.sin(a)*dist*0.72;
+      const gr=g.createRadialGradient(x,y,0,x,y,raio);
+      const al=(0.030+q(i+300)*0.045)*(camada===2?0.6:1);
+      gr.addColorStop(0,'rgba('+G[0]+','+G[1]+','+G[2]+','+al.toFixed(3)+')');
+      gr.addColorStop(.55,'rgba('+G[0]+','+G[1]+','+G[2]+','+(al*0.35).toFixed(3)+')');
+      gr.addColorStop(1,'rgba('+G[0]+','+G[1]+','+G[2]+',0)');
+      g.fillStyle=gr; g.beginPath(); g.arc(x,y,raio,0,6.283); g.fill();
+    }
+  }
+  // filamentos: o gás corre em fios, não em manchas
+  for(let f=0;f<14;f++){
+    const a0=q(f+500)*6.283;
+    g.strokeStyle='rgba(255,'+(140+Math.round(q(f+520)*90))+',180,'+(0.05+q(f+540)*0.07)+')';
+    g.lineWidth=R*(0.02+q(f+560)*0.05);
+    g.beginPath();
+    for(let k=0;k<26;k++){
+      const u=k/25;
+      const a=a0+u*1.9+Math.sin(t/6000+f)*0.15;
+      const rr=R*(0.2+u*1.25+0.12*Math.sin(u*7+f));
+      const x=mx+Math.cos(a)*rr, y=my+Math.sin(a)*rr*0.74;
+      k?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.stroke();
+  }
+  g.globalCompositeOperation='source-over';
+  // faixas de poeira: subtraem luz
+  for(let d=0;d<7;d++){
+    const a0=q(d+700)*6.283;
+    g.strokeStyle='rgba(6,4,12,'+(0.28+q(d+720)*0.3)+')';
+    g.lineWidth=R*(0.05+q(d+740)*0.11);
+    g.beginPath();
+    for(let k=0;k<20;k++){
+      const u=k/19;
+      const a=a0+u*2.4;
+      const rr=R*(0.25+u*1.05+0.16*Math.sin(u*5+d));
+      const x=mx+Math.cos(a)*rr, y=my+Math.sin(a)*rr*0.7;
+      k?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.stroke();
+  }
+  // estrelas jovens acesas dentro do gás
+  g.globalCompositeOperation='lighter';
+  for(let e=0;e<16;e++){
+    const a=q(e+800)*6.283, dd=R*(0.1+q(e+820)*0.95);
+    const x=mx+Math.cos(a)*dd, y=my+Math.sin(a)*dd*0.72;
+    const br=0.4+q(e+840)*0.6, pul=0.85+0.15*Math.sin(t/700+e);
+    const gr=g.createRadialGradient(x,y,0,x,y,R*0.12*br);
+    gr.addColorStop(0,'rgba(255,255,255,'+(0.9*pul)+')');
+    gr.addColorStop(.25,'rgba(190,220,255,'+(0.5*pul)+')');
+    gr.addColorStop(1,'rgba(140,180,255,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,R*0.12*br,0,6.283); g.fill();
+    // agulhas de difração
+    g.strokeStyle='rgba(255,255,255,'+(0.22*br*pul)+')'; g.lineWidth=1;
+    const L=R*0.09*br;
+    g.beginPath(); g.moveTo(x-L,y); g.lineTo(x+L,y); g.moveTo(x,y-L); g.lineTo(x,y+L); g.stroke();
+  }
+  g.restore();
+}
+
+// ---------- planeta: textura própria, iluminação e atmosfera ----------
+const texCache={};
+function texturaPlaneta(chave,sd){
+  if(texCache[chave]) return texCache[chave];
+  const TW=192, TH=96;
+  const c2=document.createElement('canvas'); c2.width=TW; c2.height=TH;
+  const x2=c2.getContext('2d');
+  const im=x2.createImageData(TW,TH), pd=im.data;
+  const q=k=>hash(k,sd*613|0,k*17+3);
+  // paleta: mundo de água, de gelo, deserto ou vulcânico
+  const clima=Math.floor(q(1)*4);
+  const paletas=[
+    {mar:[18,54,110], costa:[36,110,140], terra:[58,110,64], alto:[150,140,110], neve:[235,240,250]},
+    {mar:[40,60,90],  costa:[120,150,190],terra:[200,215,235],alto:[235,242,255],neve:[255,255,255]},
+    {mar:[110,80,40], costa:[168,126,66], terra:[196,150,84], alto:[150,110,70], neve:[220,200,170]},
+    {mar:[60,12,12],  costa:[130,40,20],  terra:[90,30,26],  alto:[230,110,40], neve:[255,190,90]}
+  ];
+  const P=paletas[clima];
+  const nivelMar=0.44+q(2)*0.16;
+  for(let y=0;y<TH;y++){
+    const lat=(y/TH-0.5)*Math.PI;
+    for(let x=0;x<TW;x++){
+      const lon=(x/TW)*6.283;
+      // amostragem esférica, para não haver costura no meridiano
+      const cx3=Math.cos(lat)*Math.cos(lon)*3.1, cy3=Math.cos(lat)*Math.sin(lon)*3.1, cz3=Math.sin(lat)*3.1;
+      let h=fbm(cx3+cz3*0.5+sd*3, cy3+cz3*0.31, 7)*0.65
+           + fbm(cx3*2.4+11, cy3*2.4-5, 19)*0.35;
+      const gelo=Math.pow(Math.abs(Math.sin(lat)),3.2)*(clima===1?1.4:0.85);
+      h=h*0.92+gelo*0.5;
+      let c;
+      if(h<nivelMar) c=P.mar;
+      else if(h<nivelMar+0.045) c=P.costa;
+      else if(h<nivelMar+0.20) c=P.terra;
+      else if(h<nivelMar+0.30) c=P.alto;
+      else c=P.neve;
+      const v=0.86+fbm(cx3*7,cy3*7,31)*0.28;
+      const i=(y*TW+x)*4;
+      pd[i]=Math.min(255,c[0]*v); pd[i+1]=Math.min(255,c[1]*v);
+      pd[i+2]=Math.min(255,c[2]*v); pd[i+3]=255;
+    }
+  }
+  x2.putImageData(im,0,0);
+  const dados=x2.getImageData(0,0,TW,TH).data;
+  texCache[chave]={TW,TH,dados,clima};
+  return texCache[chave];
+}
+const esfera=document.createElement('canvas'); esfera.width=esfera.height=200;
+const esferaCtx=esfera.getContext('2d');
+const esferaImg=esferaCtx.createImageData(200,200);
+function desenharPlaneta(mx,my,R,cor,t,sd,chave){
+  const tex=texturaPlaneta(chave,sd);
+  const N=200, meio=N/2;
+  const pd=esferaImg.data;
+  const rot=t/26000 + sd*6.28;
+  const inclin=(hash(1,sd*100|0,5)-0.5)*0.7;
+  const lx=-0.62, ly=-0.42, lz=0.66;      // luz vinda de cima à esquerda
+  for(let y=0;y<N;y++){
+    const ny=(y-meio)/meio;
+    for(let x=0;x<N;x++){
+      const i=(y*N+x)*4;
+      const nx=(x-meio)/meio;
+      const r2=nx*nx+ny*ny;
+      if(r2>1){ pd[i+3]=0; continue; }
+      const nz=Math.sqrt(1-r2);
+      // inclinação do eixo
+      const sy=ny*Math.cos(inclin)-nz*Math.sin(inclin);
+      const sz=ny*Math.sin(inclin)+nz*Math.cos(inclin);
+      const lon=Math.atan2(nx,sz)+rot;
+      const lat=Math.asin(Math.max(-1,Math.min(1,sy)));
+      let u=((lon/6.283)%1+1)%1;
+      let v=(0.5-lat/Math.PI);
+      const tx=Math.min(tex.TW-1,(u*tex.TW)|0), ty=Math.min(tex.TH-1,(v*tex.TH)|0);
+      const ti=(ty*tex.TW+tx)*4;
+      const luz=Math.max(0,nx*lx+ny*ly+nz*lz);
+      const sombra=0.06+0.94*Math.pow(luz,0.85);
+      // nuvens: outra camada, a girar mais depressa
+      const nuv=fbm(Math.cos(lat)*Math.cos(lon+rot*2.4)*4+30,
+                    Math.cos(lat)*Math.sin(lon+rot*2.4)*4, 53);
+      const nb=Math.max(0,(nuv-0.55))*2.1*sombra;
+      // atmosfera na borda
+      const borda=Math.pow(r2,3.4)*1.5*Math.max(0.15,luz);
+      pd[i]  =Math.min(255, tex.dados[ti]*sombra   + nb*210 + borda*90);
+      pd[i+1]=Math.min(255, tex.dados[ti+1]*sombra + nb*225 + borda*140);
+      pd[i+2]=Math.min(255, tex.dados[ti+2]*sombra + nb*245 + borda*225);
+      pd[i+3]=255;
+    }
+  }
+  esferaCtx.putImageData(esferaImg,0,0);
+  // halo atmosférico por fora
+  const gr=g.createRadialGradient(mx,my,R*0.96,mx,my,R*1.32);
+  gr.addColorStop(0,'rgba(120,180,255,.30)');
+  gr.addColorStop(1,'rgba(120,180,255,0)');
+  g.fillStyle=gr; g.beginPath(); g.arc(mx,my,R*1.32,0,6.283); g.fill();
+  g.drawImage(esfera, mx-R, my-R, R*2, R*2);
+  // lua
+  const la=t/9000+sd*3;
+  const lxp=mx+Math.cos(la)*R*1.85, lyp=my+Math.sin(la)*R*0.62;
+  g.fillStyle='rgba(200,200,210,.9)';
+  g.beginPath(); g.arc(lxp,lyp,Math.max(2,R*0.09),0,6.283); g.fill();
+  g.fillStyle='rgba(0,0,0,.45)';
+  g.beginPath(); g.arc(lxp-R*0.03,lyp-R*0.02,Math.max(1.4,R*0.075),0,6.283); g.fill();
+}
+
+// ================= desenho =================
+let px=0, py=0, alvoX=0, alvoY=0, deriva=0, tAnt=0, prof0=1, prof0Alvo=1;
+function medir(){
+  dpr=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  g.setTransform(dpr,0,0,dpr,0,0);
+}
+function pintar(t){
+  const gi=regiao.gi||0, lug=regiao.lugar, est=(lug&&lug.tipo)||TIPOS[5];
+  const cor=GAL[gi].cor;
+  // fundo com a cor da galáxia
+  const gr=g.createRadialGradient(W*0.5,H*0.45,0,W*0.5,H*0.45,Math.max(W,H)*0.8);
+  gr.addColorStop(0,'rgba('+cor[0]*0.16+','+cor[1]*0.16+','+cor[2]*0.2+',1)');
+  gr.addColorStop(1,'rgba(4,5,11,1)');
+  g.fillStyle=gr; g.fillRect(0,0,W,H);
+
+  // campo de estrelas: nasce da célula onde se está, por isso é sempre o mesmo lugar
+  const cx=Math.floor(lon/escalaAtual), cy=Math.floor(lat/escalaAtual);
+  // deriva: o céu corre sempre um pouco, e corre mais depressa quando você anda
+  deriva += (0.06 + Math.min(2.4, vel*0.5) + Math.abs(olharAlvo-olhar)*40) * (t-tAnt)*0.06;
+  tAnt=t;
+  const dens = est.glifo==='vazio'?40 : est.glifo==='campo'?300 : est.glifo==='enxame'?520 : 190;
+  px+=(alvoX-px)*0.06; py+=(alvoY-py)*0.06;
+  prof0+=(prof0Alvo-prof0)*0.08;
+  olhar+=((olharAlvo-olhar))*0.12;
+  const desvio=olhar*W*0.16;                 // virar a cabeça desloca o céu
+  for(let i=0;i<dens;i++){
+    const rx=hash(cx*31+i,cy*17,3), ry=hash(cx*13,cy*29+i,7), rz=hash(i,cx^cy,13);
+    const prof=(0.35+rz*0.65)*prof0;
+    const x=((rx*W + px*prof*0.35 + desvio*prof - deriva*prof*0.6)%W+W)%W;
+    const y=((ry*H + py*prof*0.35 + Math.sin((rx+ry)*3.1+deriva*0.02)*6*prof)%H+H)%H;
+    const r=(0.4+rz*1.5)*(est.glifo==='enxame'?1.4:1);
+    const b=0.25+rz*0.75;
+    g.fillStyle='rgba('+Math.round(cor[0]*b+80)+','+Math.round(cor[1]*b+80)+','+Math.round(cor[2]*b+90)+','+(0.25+rz*0.6)+')';
+    g.beginPath(); g.arc(x,y,r,0,6.283); g.fill();
+  }
+  // a estrutura no centro
+  const mx=W*0.5+px*0.12+desvio*0.5, my=H*0.45+py*0.12, R=Math.min(W,H)*0.22;
+  const pulso=0.5+0.5*Math.sin(t/1400);
+  const sd=(Math.abs(cx*7919+cy*104729)%9973)/9973;
+  g.save();
+  if(est.glifo==='poco'){
+    desenharBuraco(mx,my,R*1.05,cor,t,sd);
+  } else if(est.glifo==='nebulosa'){
+    desenharNebulosa(mx,my,R*1.15,cor,t,sd);
+  } else if(est.glifo==='planeta'){
+    desenharPlaneta(mx,my,R*0.72,cor,t,sd, lug?lug.chave:'x');
+  } else if(est.glifo==='nuvem'){
+    for(let i=0;i<26;i++){
+      const a=hash(cx,cy+i,21)*6.283, d=hash(cx+i,cy,23)*R;
+      const gg=g.createRadialGradient(mx+Math.cos(a)*d,my+Math.sin(a)*d,0,mx+Math.cos(a)*d,my+Math.sin(a)*d,R*0.5);
+      gg.addColorStop(0,'rgba('+cor[0]+','+cor[1]+','+cor[2]+',.055)');
+      gg.addColorStop(1,'rgba('+cor[0]+','+cor[1]+','+cor[2]+',0)');
+      g.fillStyle=gg; g.beginPath(); g.arc(mx+Math.cos(a)*d,my+Math.sin(a)*d,R*0.5,0,6.283); g.fill();
+    }
+  } else if(est.glifo==='anel'){
+    for(let k=0;k<3;k++){
+      g.strokeStyle='rgba('+cor[0]+','+cor[1]+','+cor[2]+','+(0.30-k*0.08)+')';
+      g.lineWidth=1.5;
+      g.beginPath(); g.arc(mx,my,R*(0.5+k*0.22+pulso*0.05),0,6.283); g.stroke();
+    }
+  } else if(est.glifo==='sistema'){
+    g.fillStyle='rgba('+cor[0]+','+cor[1]+','+cor[2]+',.9)';
+    g.beginPath(); g.arc(mx,my,7+pulso*2,0,6.283); g.fill();
+    for(let k=1;k<=4;k++){
+      const rr=R*(0.28+k*0.18);
+      g.strokeStyle='rgba('+cor[0]+','+cor[1]+','+cor[2]+',.18)';
+      g.lineWidth=1; g.beginPath(); g.ellipse(mx,my,rr,rr*0.42,0.6,0,6.283); g.stroke();
+      const a=t/(1800*k)+hash(cx,cy+k,5)*6.283;
+      g.fillStyle='rgba('+cor[0]+','+cor[1]+','+cor[2]+',.85)';
+      g.beginPath();
+      g.arc(mx+Math.cos(a)*rr*Math.cos(0.6)-Math.sin(a)*rr*0.42*Math.sin(0.6),
+            my+Math.cos(a)*rr*Math.sin(0.6)+Math.sin(a)*rr*0.42*Math.cos(0.6), 2.6,0,6.283);
+      g.fill();
+    }
+  } else if(est.glifo==='braco'){
+    g.strokeStyle='rgba('+cor[0]+','+cor[1]+','+cor[2]+',.20)'; g.lineWidth=R*0.20;
+    g.beginPath();
+    for(let a=0;a<7;a+=0.1){ const rr=R*0.14*a;
+      const x=mx+Math.cos(a)*rr, y=my+Math.sin(a)*rr*0.55;
+      a?g.lineTo(x,y):g.moveTo(x,y); }
+    g.stroke();
+  }
+  g.restore();
+
+  // marco real assinalado
+  if(regiao.lugar&&regiao.lugar.marco){
+    g.strokeStyle='rgba(107,231,168,'+(0.4+pulso*0.35)+')'; g.lineWidth=1.4;
+    g.beginPath(); g.arc(mx,my,R*0.75,0,6.283); g.stroke();
+    g.setLineDash([3,7]);
+    g.beginPath(); g.arc(mx,my,R*0.9,0,6.283); g.stroke();
+    g.setLineDash([]);
+  }
+  requestAnimationFrame(pintar);
+}
+
+// ================= navegação estática =================
+let arr=null;
+cv.addEventListener('pointerdown',e=>{
+  arr={x:e.clientX,y:e.clientY,lat,lon,olhar};
+  try{cv.setPointerCapture(e.pointerId);}catch(_){}
+});
+cv.addEventListener('pointermove',e=>{
+  if(!arr) return;
+  const dx=e.clientX-arr.x, dy=e.clientY-arr.y;
+  if(modo==='fisica'){
+    // o corpo anda com o GPS; a cabeça vira com o dedo
+    olharAlvo=arr.olhar - dx*0.005;
+    alvoY=Math.max(-140,Math.min(140,dy*0.5));
+  } else {
+    alvoX=dx*0.6; alvoY=dy*0.6;
+    const passo=escalaAtual*0.02;
+    irPara(Math.max(-85,Math.min(85, arr.lat + dy*passo)),
+           ((arr.lon - dx*passo + 540)%360)-180, false);
+  }
+});
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>{ arr=null; alvoX=0; if(modo!=='fisica') alvoY=0; }));
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ---------- eixo z: aproximar e afastar ----------
+function mexerZ(f){
+  prof0Alvo=Math.max(0.35, Math.min(3.2, prof0Alvo*f));
+  el('rProf').textContent=prof0Alvo<0.7?'longe':prof0Alvo>1.6?'perto':'normal';
+}
+addEventListener('wheel',e=>{ e.preventDefault(); mexerZ(e.deltaY>0?0.92:1.08); },{passive:false});
+let pinca=null;
+cv.addEventListener('touchstart',e=>{
+  if(e.touches.length===2){
+    pinca=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                     e.touches[0].clientY-e.touches[1].clientY);
+    arr=null;
+  }
+},{passive:true});
+cv.addEventListener('touchmove',e=>{
+  if(e.touches.length!==2||!pinca) return;
+  const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,
+                     e.touches[0].clientY-e.touches[1].clientY);
+  mexerZ(d/pinca); pinca=d;
+},{passive:true});
+cv.addEventListener('touchend',()=>{ pinca=null; });
+
+// ================= controlos =================
+function escolherModo(m){
+  modo=m;
+  document.querySelectorAll('[data-modo]').forEach(b=>
+    b.setAttribute('aria-pressed', b.dataset.modo===m?'true':'false'));
+  if(m==='fisica'){ ligarGPS(); nota('a procurar sinal — ande e o universo acompanha'); }
+  else { desligarGPS(); vel=0; nota('arraste para navegar; o que encontrar fica por confirmar'); }
+  atualizar();
+}
+document.querySelectorAll('[data-modo]').forEach(b=>b.onclick=()=>escolherModo(b.dataset.modo));
+document.getElementById('bMarcar').onclick=registar;
+
+const folha=document.getElementById('folha'), corpo=document.getElementById('folhaCorpo');
+function ligarAjuda(botao,caixa){
+  const b=document.getElementById(botao), c=document.getElementById(caixa);
+  if(!b||!c) return;
+  b.onclick=e=>{
+    e.stopPropagation();
+    const abrir=c.hidden;
+    c.hidden=!abrir;
+    b.textContent=b.textContent.replace(abrir?'▾':'▴', abrir?'▴':'▾');
+  };
+  document.getElementById('folhaCorpo').addEventListener('click',ev=>{
+    if(!c.hidden && ev.target!==b && !c.contains(ev.target)){
+      c.hidden=true; b.textContent=b.textContent.replace('▴','▾');
+    }
+  });
+}
+function abrirFolha(html){
+  corpo.innerHTML=html+'<button id="folhaFechar">FECHAR</button>';
+  folha.hidden=false; folha.classList.remove('off');
+  document.getElementById('folhaFechar').onclick=()=>{
+    folha.classList.add('off'); setTimeout(()=>folha.hidden=true,400);
+  };
+}
+document.getElementById('proc').onclick=()=>{
+  const m=regiao.lugar&&regiao.lugar.marco;
+  abrirFolha(
+    '<h2>Procedência dos dados</h2>'+
+    '<p><span class="tag dc">DC</span><b>Dado cientificamente testado.</b> Vem de observação publicada: '+
+    'nomes, distâncias e naturezas de galáxias e objetos reais do Grupo Local. Os valores estão '+
+    'arredondados, e a incerteza astronómica em distâncias é de vários por cento.</p>'+
+    '<p><span class="tag ds">DS</span><b>Dado sintético.</b> Gerado por função determinística a partir '+
+    'da sua posição. Não representa nada observado — preenche o mapa para que o universo não seja um '+
+    'vazio sem forma. O mesmo lugar devolve sempre o mesmo resultado.</p>'+
+    '<p>Aqui e agora: <b>'+(m?'DC — '+m.n:'DS — '+(regiao.lugar?regiao.lugar.nome:'—'))+'</b>.'+
+    (m?' '+m.f+'.':'')+'</p>'+
+    '<p>Versão desta região: <b>'+versaoRegiao(lat,lon)+'</b>. A versão muda quando afinamos a '+
+    'geração daquele pedaço de céu — serve para saber se o que viu ontem foi gerado pelas mesmas regras.</p>'+
+    '<p>A sua posição nunca sai deste aparelho: não há servidor nesta peça.</p>');
+};
+document.getElementById('proc').addEventListener('keydown',e=>{
+  if(e.key==='Enter'||e.key===' ') document.getElementById('proc').click(); });
+
+// ---------- ficha de um lugar ----------
+function abrirFicha(l,gi){
+  const c=l.camadas, dc=l.marco;
+  const est=estudosDe(l);
+  const linhas = c.quimica ? [
+      ['massa', c.massa],['temperatura', c.temp],['química', c.quimica],
+      ['vida', c.civil],['tecnologia', c.tecno],['espaço-tempo', c.dim]
+    ] : [['extensão', c.escala],['espaço-tempo', c.dim]];
+  abrirFolha(
+    '<h2>'+l.nome+'</h2>'+
+    '<p><span class="tag '+(dc?'dc':'ds')+'">'+(dc?'DC':'DS')+'</span>'+
+      l.tipo.n+' · '+GAL[gi].n+'</p>'+
+    (dc?'<p>'+dc.f+'.</p>':'')+
+    '<div class="achados">'+linhas.map(x=>
+      '<div><span>'+x[0]+'</span><span class="st" style="color:var(--luz)">'+x[1]+'</span></div>').join('')+'</div>'+
+    (dc?'<p style="font-size:10px">Os atributos acima são <b>hipóteses geradas</b> sobre um lugar real. '+
+        'O objeto existe; o que se diz dele aqui, não.</p>':'')+
+    '<h2 style="margin-top:18px">Estudos</h2>'+
+    '<div class="achados">'+est.map(e=>
+      '<div><i class="tag '+(e.ok?'dc':'ds')+'">'+(e.ok?'✓':'·')+'</i><span class="nm">'+e.n+'</span></div>').join('')+
+    '</div>'+
+    '<p style="font-size:10px">Cada estudo cumprido vale pontos na expedição.</p>');
+}
+
+// ---------- mapa do que já foi encontrado ----------
+function irParaChave(k){
+  const a=achados.find(x=>x.k===k);
+  if(!a) return;
+  let la=a.la, lo=a.lo;
+  if(la===undefined && a.cx!==undefined && a.q){    // registos da versão anterior
+    la=(a.cy+0.5)*a.q; lo=(a.cx+0.5)*a.q;
+  }
+  if(la===undefined){ nota(a.n+' foi catalogado antes de guardarmos coordenadas — visite outra vez'); return; }
+  if(modo==='fisica') escolherModo('estatica');
+  irPara(la,lo,false);
+  deriva+=90;
+  document.getElementById('folhaFechar').click();
+  nota('de volta a '+a.n);
+}
+let pastas=[];
+try{ pastas=JSON.parse(localStorage.getItem('cosmo_pastas')||'[]'); }catch(e){ pastas=[]; }
+function guardarPastas(){ try{ localStorage.setItem('cosmo_pastas',JSON.stringify(pastas)); }catch(e){} }
+const filtro={txt:'',pasta:'',proc:'',estado:'',ord:'recentes'};
+
+function abrirMapa(){
+  abrirFolha(
+    '<h2>Mapa</h2>'+
+    '<div class="campo" style="display:flex;gap:6px;margin-bottom:8px">'+
+      '<input id="fTxt" placeholder="procurar nome, tipo ou galáxia" '+
+      'style="flex:1;font:inherit;font-size:12px;background:rgba(230,236,255,.06);border:1px solid var(--line);'+
+      'color:var(--luz);padding:9px 11px;border-radius:3px">'+
+    '</div>'+
+    '<div class="chips" id="fChips"></div>'+
+    '<div class="chips" id="fPastas"></div>'+
+    '<p id="mapaConta" style="font-size:10px;margin:10px 0 4px"></p>'+
+    '<div id="mapaLista"></div>');
+  const t=document.getElementById('fTxt');
+  t.value=filtro.txt;
+  t.addEventListener('input',()=>{ filtro.txt=t.value.toLowerCase(); pintarMapa(); });
+  pintarMapa();
+}
+function chip(rot,ativo,acao){
+  return '<button class="chip'+(ativo?' on':'')+'" data-acao="'+acao+'">'+rot+'</button>';
+}
+function pintarMapa(){
+  const meus={}; achados.forEach(a=>meus[a.k]=a);
+  let todos=(expAchados.length?expAchados:achados.map(a=>({k:a.k,n:a.n,g:a.g,tipo:a.tipo,p:a.p,e:a.e,meu:true})))
+    .map(a=>Object.assign({},a,{
+      d: meus[a.k]?meus[a.k].d:undefined,
+      pasta: meus[a.k]?(meus[a.k].pasta||''):'',
+      t: meus[a.k]?meus[a.k].t:0,
+      meu: meus[a.k]!==undefined
+    }));
+  const total=todos.length;
+  if(filtro.txt) todos=todos.filter(a=>
+    (a.n+' '+a.g+' '+a.tipo+' '+(a.pasta||'')).toLowerCase().includes(filtro.txt));
+  if(filtro.proc) todos=todos.filter(a=>a.p===filtro.proc);
+  if(filtro.estado) todos=todos.filter(a=>a.e===filtro.estado);
+  if(filtro.pasta==='__sem') todos=todos.filter(a=>!a.pasta);
+  else if(filtro.pasta) todos=todos.filter(a=>a.pasta===filtro.pasta);
+  if(filtro.ord==='distancia') todos.sort((a,b)=>(a.d===undefined?1e9:a.d)-(b.d===undefined?1e9:b.d));
+  else if(filtro.ord==='nome') todos.sort((a,b)=>a.n.localeCompare(b.n));
+  else todos.sort((a,b)=>(b.t||0)-(a.t||0));
+
+  document.getElementById('fChips').innerHTML=
+    chip('DC',filtro.proc==='DC','proc:DC')+chip('DS',filtro.proc==='DS','proc:DS')+
+    chip('visitados',filtro.estado==='visitado','estado:visitado')+
+    chip('reconhecidos',filtro.estado==='reconhecido','estado:reconhecido')+
+    '<span class="sep"></span>'+
+    chip('recentes',filtro.ord==='recentes','ord:recentes')+
+    chip('mais perto',filtro.ord==='distancia','ord:distancia')+
+    chip('a–z',filtro.ord==='nome','ord:nome');
+  document.getElementById('fPastas').innerHTML=
+    chip('todas as pastas',!filtro.pasta,'pasta:')+
+    chip('sem pasta',filtro.pasta==='__sem','pasta:__sem')+
+    pastas.map(p=>chip('🗀 '+p,filtro.pasta===p,'pasta:'+p)).join('');
+  document.querySelectorAll('#folhaCorpo .chip').forEach(b=>b.onclick=()=>{
+    const [campo,valor]=b.dataset.acao.split(':');
+    filtro[campo] = (filtro[campo]===valor && campo!=='ord') ? '' : valor;
+    pintarMapa();
+  });
+
+  document.getElementById('mapaConta').textContent =
+    todos.length+' de '+total+' lugares'+(expCod?' · expedição '+expCod:'');
+  const lista=document.getElementById('mapaLista');
+  if(!todos.length){ lista.innerHTML='<p>nada corresponde a este filtro.</p>'; return; }
+  const porGal={}; todos.forEach(a=>{ (porGal[a.g]=porGal[a.g]||[]).push(a); });
+  lista.innerHTML=Object.keys(porGal).sort((a,b)=>porGal[b].length-porGal[a].length).map(gal=>
+    '<h2 style="font-size:12px;margin:14px 0 8px">'+gal+
+    ' <span style="color:var(--dim)">· '+porGal[gal].length+'</span></h2>'+
+    '<div class="achados">'+porGal[gal].slice(0,60).map(a=>
+      '<div class="linha" data-k="'+a.k+'">'+
+      '<i class="tag '+(a.p==='DC'?'dc':'ds')+'">'+a.p+'</i>'+
+      '<span class="nm'+(a.meu?' vai':'')+'">'+a.n+(a.pasta?' <i class="pst">🗀 '+a.pasta+'</i>':'')+'</span>'+
+      '<span class="dcol">'+(a.d!==undefined?fmtDist(a.d):'—')+'</span>'+
+      '<span class="st '+(a.e==='visitado'?'vis':'rec')+'">'+
+        (a.meu?'':'de outro · ')+(a.e==='visitado'?'visitado':'reconhecido')+'</span>'+
+      (a.meu?'<b class="acc" data-p="'+a.k+'" title="pasta">🗀</b>'+
+             '<b class="acc rm" data-r="'+a.k+'" title="remover">✕</b>':'')+
+      '</div>').join('')+'</div>').join('');
+
+  lista.querySelectorAll('.nm.vai').forEach(n=>{
+    n.style.cursor='pointer';
+    n.onclick=()=>irParaChave(n.closest('.linha').dataset.k);
+  });
+  lista.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>removerAchado(b.dataset.r));
+  lista.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>escolherPasta(b.dataset.p));
+}
+function removerAchado(k){
+  const i=achados.findIndex(a=>a.k===k);
+  if(i<0) return;
+  const n=achados[i].n;
+  achados.splice(i,1); delete estudos[k];
+  guardar(); guardarEstudos(); atualizar();
+  nota('removido do mapa: '+n);
+  pintarMapa();
+}
+function escolherPasta(k){
+  const a=achados.find(x=>x.k===k); if(!a) return;
+  const opcoes = pastas.map(p=>'<button class="chip'+(a.pasta===p?' on':'')+'" data-mv="'+p+'">🗀 '+p+'</button>').join('')
+    + '<button class="chip" data-mv="">sem pasta</button>';
+  abrirFolha('<h2>Pasta de '+a.n+'</h2>'+
+    '<div class="chips" id="mvLista">'+opcoes+'</div>'+
+    '<div class="campo" style="display:flex;gap:6px;margin-top:12px">'+
+    '<input id="novaPasta" maxlength="20" placeholder="nova pasta" '+
+    'style="flex:1;font:inherit;font-size:12px;background:rgba(230,236,255,.06);border:1px solid var(--line);'+
+    'color:var(--luz);padding:9px 11px;border-radius:3px">'+
+    '<button id="criarPasta">CRIAR</button></div>');
+  const aplicar=nome=>{
+    a.pasta=nome; guardar();
+    document.getElementById('folhaFechar').click();
+    abrirMapa();
+  };
+  document.querySelectorAll('#mvLista [data-mv]').forEach(b=>b.onclick=()=>aplicar(b.dataset.mv));
+  document.getElementById('criarPasta').onclick=()=>{
+    const nome=(document.getElementById('novaPasta').value||'').trim().slice(0,20);
+    if(!nome) return;
+    if(!pastas.includes(nome)){ pastas.push(nome); guardarPastas(); }
+    aplicar(nome);
+  };
+}
+
+// ---------- expedição: mapa e placar partilhados ----------
+let expCod='', expModo='', expMembros=[], expAchados=[], expT=null;
+const EU=(function(){
+  try{ let v=localStorage.getItem('cosmo_id');
+    if(!v){ v=Math.random().toString(36).slice(2,10); localStorage.setItem('cosmo_id',v); }
+    return v;
+  }catch(e){ return Math.random().toString(36).slice(2,10); }
+})();
+async function expApi(corpo){
+  const r=await fetch('api/cosmos',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify(Object.assign({id:EU},corpo))});
+  const d=await r.json();
+  if(d.erro) throw new Error(d.erro);
+  return d;
+}
+function aplicarExp(d){
+  expCod=d.cod; expModo=d.modo==='concorrencia'?'concorrência':'colaboração';
+  expMembros=d.membros||[]; expAchados=d.achados||[];
+  el('rExp').textContent=expCod?expCod+' · '+expMembros.length:'—';
+  try{ localStorage.setItem('cosmo_exp',expCod); }catch(e){}
+}
+async function sincronizarExp(a){
+  if(!expCod||!a) return;
+  const e=estudos[a.k]||{};
+  const n=(e.obs?1:0)+(e.volta?1:0)+(e.vizinho?1:0);
+  try{ aplicarExp(await expApi({acao:'registar', cod:expCod,
+    achado:{k:a.k,n:a.n,g:a.g,tipo:a.tipo,p:a.p,e:a.e,estudos:n,prec:a.prp||0,raro:a.vr||0}})); }catch(err){}
+}
+async function sondarExp(){
+  if(!expCod) return;
+  try{
+    const r=await fetch('api/cosmos?cod='+expCod+'&v='+EU);
+    const d=await r.json(); if(!d.erro) aplicarExp(d);
+  }catch(e){}
+}
+function abrirExpedicao(){
+  if(expCod){
+    const placar=expMembros.map((m,i)=>
+      '<div><span class="pos" style="color:var(--dim);min-width:20px">'+(i+1)+'º</span>'+
+      '<span class="nm"'+(m.eu?' style="color:var(--dc)"':'')+'>'+m.alcunha+(m.eu?' · você':'')+'</span>'+
+      '<span class="st">'+(m.online?'<i class="onl"></i>':'')+m.pontos+' pt · '+m.achados+'</span></div>').join('');
+    abrirFolha('<h2>Expedição '+expCod+'</h2>'+
+      '<p>modo <b>'+expModo+'</b> · '+expMembros.length+' exploradores · '+expAchados.length+
+      ' lugares no mapa '+(expModo==='colaboração'?'comum':'de cada um')+
+      ' <b class="ajuda" id="ajExp2">pontuação ▾</b></p>'+
+      '<div class="caixaAjuda" id="cxExp2" hidden>'+
+      '<p>lugar sintético <b>1</b> · marco real <b>5</b> · confirmar no terreno <b>+3</b> · '+
+      'cada estudo cumprido <b>+2</b>. O ponto verde marca quem está em campo agora.</p></div>'+
+      '<div class="achados">'+placar.replace(/<span class="st">/g,'<span class="st">')+'</div>'+
+      '<div class="linhas" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">'+
+      '<button id="expCopiar">COPIAR CÓDIGO</button>'+
+      '<button id="expSair" style="border-color:var(--line);color:var(--dim)">SAIR</button></div>');
+    ligarAjuda('ajExp2','cxExp2');
+    document.getElementById('expCopiar').onclick=async e=>{
+      try{ await navigator.clipboard.writeText(expCod); }catch(err){}
+      e.currentTarget.textContent='COPIADO';
+    };
+    document.getElementById('expSair').onclick=()=>{
+      expCod=''; expAchados=[]; expMembros=[];
+      try{ localStorage.removeItem('cosmo_exp'); }catch(e){}
+      el('rExp').textContent='—';
+      document.getElementById('folhaFechar').click();
+    };
+  } else {
+    abrirFolha('<h2>Expedição</h2>'+
+      '<p>Junte exploradores num mapa comum, ou dispute com eles quem encontra mais. '+
+      '<b class="ajuda" id="ajExp">como funciona ▾</b></p>'+
+      '<div class="caixaAjuda" id="cxExp" hidden>'+
+      '<p><b>Colaboração.</b> Todos veem o mesmo mapa. Um lugar catalogado por alguém aparece '+
+      'aos outros, e a expedição avança mais depressa do que qualquer um sozinho.</p>'+
+      '<p><b>Concorrência.</b> Cada um vê apenas o que encontrou. O placar mostra quem vai à frente.</p>'+
+      '<p><b>Pontos.</b> lugar sintético <b>1</b> · marco real <b>5</b> · confirmar no terreno <b>+3</b> · '+
+      'cada estudo cumprido <b>+2</b>.</p>'+
+      '<p><b>Código.</b> cinco letras. Quem o tiver, entra — não é preciso conta nem nada mais.</p>'+
+      '</div>'+
+      '<div class="campo" style="display:flex;gap:6px;margin-bottom:10px">'+
+      '<input id="expAlcunha" maxlength="18" placeholder="a sua alcunha" '+
+      'style="flex:1;font:inherit;font-size:12px;background:rgba(230,236,255,.06);'+
+      'border:1px solid var(--line);color:var(--luz);padding:9px 11px;border-radius:3px"></div>'+
+      '<div class="linhas" style="display:flex;gap:8px;flex-wrap:wrap">'+
+      '<button id="expColab">CRIAR — COLABORAÇÃO</button>'+
+      '<button id="expConc">CRIAR — CONCORRÊNCIA</button></div>'+
+      '<div class="campo" style="display:flex;gap:6px;margin-top:14px">'+
+      '<input id="expCodIn" maxlength="5" placeholder="CÓDIGO" '+
+      'style="flex:1;font:inherit;font-size:13px;letter-spacing:.24em;text-transform:uppercase;'+
+      'background:rgba(230,236,255,.06);border:1px solid var(--line);color:var(--luz);'+
+      'padding:9px 11px;border-radius:3px">'+
+      '<button id="expEntrar">ENTRAR</button></div>'+
+      '<p id="expErro" style="color:var(--ds);font-size:11px;margin-top:10px"></p>');
+    ligarAjuda('ajExp','cxExp');
+    const alc=()=>document.getElementById('expAlcunha').value||'';
+    const erro=m=>document.getElementById('expErro').textContent=m;
+    const criar=async modo=>{
+      try{ aplicarExp(await expApi({acao:'criar',modo,alcunha:alc()}));
+        document.getElementById('folhaFechar').click(); abrirExpedicao(); }
+      catch(e){ erro(e.message); }
+    };
+    document.getElementById('expColab').onclick=()=>criar('colaboracao');
+    document.getElementById('expConc').onclick=()=>criar('concorrencia');
+    document.getElementById('expEntrar').onclick=async()=>{
+      const c=(document.getElementById('expCodIn').value||'').toUpperCase().slice(0,5);
+      if(c.length<5) return erro('faltam dígitos no código');
+      try{ aplicarExp(await expApi({acao:'estado',cod:c,alcunha:alc()}));
+        document.getElementById('folhaFechar').click(); abrirExpedicao(); }
+      catch(e){ erro(e.message); }
+    };
+  }
+}
+document.getElementById('bSalto').onclick=saltar;
+function nomeCiclo(seg){ return seg<60?seg+' s':seg<3600?(seg/60)+' min':(seg/3600)+' h'; }
+function abrirSaltos(){
+  abrirFolha('<h2>Saltos</h2>'+
+    '<p>Procurar a pé é grátis. Saltar para um lugar aleatório noutra galáxia custa um crédito. '+
+    '<b class="ajuda" id="ajS">porquê ▾</b></p>'+
+    '<div class="caixaAjuda" id="cxS" hidden><p>O limite existe para que a exploração tenha peso: '+
+    'com saltos infinitos, nenhum lugar custa nada e nada se procura. Para observar o gerador '+
+    'à vontade, ponha sem limite — é o modo de estudo.</p></div>'+
+    '<div class="linhaAj"><span>créditos no máximo</span>'+
+    '<button data-s="teto" data-i="-1">−</button><b id="vTeto">—</b>'+
+    '<button data-s="teto" data-i="1">+</button></div>'+
+    '<div class="linhaAj"><span>um crédito a cada</span>'+
+    '<button data-s="ciclo" data-i="-1">−</button><b id="vCicloS">—</b>'+
+    '<button data-s="ciclo" data-i="1">+</button></div>'+
+    '<p id="notaS" style="font-size:10px;margin-top:12px"></p>');
+  ligarAjuda('ajS','cxS');
+  const pinta=()=>{
+    document.getElementById('vTeto').textContent = TETOS[iTeto]==='∞'?'sem limite':TETOS[iTeto];
+    document.getElementById('vCicloS').textContent = semLimite()?'—':nomeCiclo(CICLOS_S[iCiclo]);
+    document.getElementById('notaS').textContent = semLimite()
+      ? 'modo de estudo: salte quantas vezes quiser.'
+      : 'do zero ao máximo demora '+nomeCiclo(CICLOS_S[iCiclo]*TETOS[iTeto])+'.';
+    el('rSalto').textContent = semLimite()?'∞':(saltos+' / '+SALTO_MAX);
+  };
+  document.querySelectorAll('#folhaCorpo [data-s]').forEach(b=>b.onclick=()=>{
+    const inc=+b.dataset.i;
+    if(b.dataset.s==='teto'){
+      iTeto=Math.max(0,Math.min(TETOS.length-1,iTeto+inc));
+      SALTO_MAX=TETOS[iTeto];
+      if(!semLimite()) saltos=Math.min(saltos,SALTO_MAX);
+    } else {
+      iCiclo=Math.max(0,Math.min(CICLOS_S.length-1,iCiclo+inc));
+      SALTO_MS=CICLOS_S[iCiclo]*1000;
+    }
+    guardarCfg(); pinta();
+  });
+  pinta();
+}
+document.querySelector('.cell b#rSalto').parentNode.style.cursor='pointer';
+document.querySelector('.cell b#rSalto').parentNode.onclick=abrirSaltos;
+function abrirCatalogo(){
+  const vistos={}; achados.forEach(a=>vistos[a.tipo]=(vistos[a.tipo]||0)+1);
+  const ord=TIPOS.slice().sort((a,b)=>a.freq-b.freq);
+  abrirFolha('<h2>Catálogo</h2>'+
+    '<p>O que existe lá fora, do mais raro ao mais comum. '+
+    '<b class="ajuda" id="ajC">valor ▾</b></p>'+
+    '<div class="caixaAjuda" id="cxC" hidden><p>O <b>valor</b> nasce da raridade: quanto menos '+
+    'um corpo aparece, mais vale o artefacto que dele se recolhe. Some-se a pontaria do registo '+
+    'e a confirmação no terreno, e é isso que decide o placar da expedição.</p></div>'+
+    ord.map(t=>
+      '<div class="catl'+(vistos[t.n]?' achado':'')+'">'+
+      '<div class="ct"><span class="cn">'+t.n+'</span>'+
+      '<span class="cv">'+t.valor+' pt</span></div>'+
+      '<div class="cd">'+(t.d||'')+'</div>'+
+      '<div class="cf"><i style="width:'+Math.max(3,Math.round(t.freq*300))+'%"></i>'+
+      '<span>'+(t.freq*100).toFixed(1)+'% do céu'+
+      (vistos[t.n]?' · '+vistos[t.n]+' no seu mapa':' · por encontrar')+'</span></div></div>').join(''));
+  ligarAjuda('ajC','cxC');
+}
+document.getElementById('bCatalogo').onclick=abrirCatalogo;
+document.getElementById('bMapa').onclick=abrirMapa;
+document.getElementById('bExp').onclick=abrirExpedicao;
+setInterval(()=>{ if(!document.hidden) sondarExp(); }, 15000);
+(function(){ try{ const c=localStorage.getItem('cosmo_exp'); if(c){ expCod=c; sondarExp(); } }catch(e){} })();
+
+const hint=document.getElementById('hint');
+setTimeout(()=>hint.classList.add('gone'),6000);
+
+// observação cumpre-se sozinha: trinta segundos quieto no mesmo lugar
+setInterval(()=>{
+  if(modo!=='fisica'||!temPos||!regiao.lugar) return;
+  if(vel>1.4) return;
+  if(Date.now()-paradoDesde<30000) return;
+  const a=achados.find(x=>x.k===regiao.lugar.chave);
+  if(a && marcarEstudo(regiao.lugar.chave,'obs')) nota('estudo cumprido: observação de '+a.n);
+},5000);
+// voltar noutro dia
+(function(){
+  achados.forEach(a=>{
+    const e=estudos[a.k];
+    if(e&&!e.volta&&(Date.now()-a.t)>20*3600*1000) { }
+  });
+})();
+setInterval(()=>{
+  if(!regiao.lugar) return;
+  const a=achados.find(x=>x.k===regiao.lugar.chave);
+  if(a && (Date.now()-a.t)>20*3600*1000 && marcarEstudo(a.k,'volta'))
+    nota('estudo cumprido: regresso a '+a.n);
+},20000);
+// vizinho do mesmo tipo
+function verificarVizinho(novo){
+  const irmao=achados.find(a=>a.k!==novo.k && a.tipo===novo.tipo && a.gi===novo.gi);
+  if(irmao){ marcarEstudo(novo.k,'vizinho'); marcarEstudo(irmao.k,'vizinho'); }
+}
+
+const FS_REBUILD=()=>medir();
+let rz=null;
+addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(medir,180); });
+addEventListener('orientationchange',()=>setTimeout(medir,320));
+addEventListener('pagehide',desligarGPS);
+
+// arranque: um ponto qualquer, para haver céu antes de haver permissão
+lat=(Math.random()*140-70); lon=(Math.random()*360-180);
+medir(); atualizar();
+requestAnimationFrame(pintar);
+})();
+</script>
+
+<script>
+// ---------- imersão ----------
+(function(){
+  const framed = window.self!==window.top;
+  const st=document.createElement('style');
+  st.textContent =
+    '.shell,header,footer{transition:opacity .5s}'+
+    'html.zen .shell,html.zen header,html.zen footer{opacity:0;pointer-events:none}'+
+    '#zenOut{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));'+
+    'bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;width:30px;height:30px;'+
+    'border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.4);'+
+    'color:#fff;opacity:0;pointer-events:none;transition:opacity .4s;display:grid;'+
+    'place-items:center;cursor:pointer;padding:0}'+
+    'html.zen #zenOut{opacity:.34;pointer-events:auto}'+
+    '#zenOut svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}';
+  document.head.appendChild(st);
+  const EYE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  const EYE_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11.05 6.03 11.5 6 12 6c6.4 0 10 6 10 6s-1.2 2-3.3 3.7M6.4 8.3C3.9 9.9 2 12 2 12s3.6 6.5 10 6.5c1.3 0 2.5-.2 3.5-.6"/></svg>';
+  let btn=null;
+  function setZen(on){
+    document.documentElement.classList.toggle('zen', !!on);
+    if(btn){ btn.setAttribute('aria-pressed', !!on); btn.innerHTML = on?EYE_OFF:EYE; }
+  }
+  const isZen=()=>document.documentElement.classList.contains('zen');
+  const fsb=document.getElementById('bFs');
+  if(fsb&&fsb.parentNode){
+    btn=document.createElement('button');
+    btn.className='fsbtn'; btn.id='bZen'; btn.setAttribute('aria-pressed','false');
+    btn.title='Imersão: esconder números'; btn.setAttribute('aria-label',btn.title);
+    btn.innerHTML=EYE;
+    btn.addEventListener('click',()=>setZen(!isZen()));
+    fsb.parentNode.insertBefore(btn,fsb);
+    if(framed) btn.style.display='none';
+  }
+  if(!framed){
+    const out=document.createElement('button');
+    out.id='zenOut'; out.innerHTML=EYE_OFF; out.title='Sair da imersão';
+    out.setAttribute('aria-label',out.title);
+    out.addEventListener('click',()=>setZen(false));
+    document.body.appendChild(out);
+  }
+  addEventListener('message',e=>{ if(e.data&&e.data.exc==='zen') setZen(e.data.on); });
+  addEventListener('keydown',e=>{
+    if((e.key==='z'||e.key==='Z')&&!e.metaKey&&!e.ctrlKey) setZen(!isZen());
+    if(e.key==='Escape'&&isZen()) setZen(false);
+  });
+})();
+
+// ---------- ecrã inteiro ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+  if(framed){
+    if(btn){ const gp=btn.closest('.group'); (gp&&gp.children.length===1?gp:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const gp=a.closest('.group'); (gp&&gp.children.length===1?gp:a).style.display='none';
+    });
+    const st=document.createElement('style');
+    st.textContent='.deck{padding-right:184px}'+
+      '@media (max-width:560px){.deck{padding-right:0;padding-bottom:calc(46px + env(safe-area-inset-bottom,0px))}}';
+    document.head.appendChild(st);
+    return;
+  }
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen;
+    if(!f) return; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); }catch(e){}};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){ btn.setAttribute('aria-pressed',on);
+      const l=on?'Sair do ecrã inteiro':'Ecrã inteiro'; btn.title=l; btn.setAttribute('aria-label',l); }
+    links();
+  }
+  if(btn){ if(!can) btn.style.display='none'; btn.addEventListener('click',()=>{ isOn()?out():req(); }); }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+  if(can && wanted() && !isOn()){
+    req();
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)),20000);
+  }
+  links(); sync();
+})();
+
+// ---------- selo de versão ----------
+(function(){
+  const st=document.createElement('style');
+  st.textContent='#excV{position:fixed;left:calc(9px + env(safe-area-inset-left,0px));'+
+    'bottom:calc(9px + env(safe-area-inset-bottom,0px));z-index:14;pointer-events:none;'+
+    'font:500 8.5px/1 ui-monospace,monospace;letter-spacing:.16em;padding:4px 6px;'+
+    'border-radius:3px;color:rgba(255,255,255,.62);background:rgba(0,0,0,.34);'+
+    '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
+    'transition:opacity .4s}'+
+    'html.zen #excV{opacity:0}'+
+    '#excV[data-desperto="1"]::after{content:" \\25C9";color:#6BE7A8;margin-left:5px}'+
+    '.deck{padding-bottom:calc(52px + env(safe-area-inset-bottom,0px))}';
+  document.head.appendChild(st);
+  const e=document.createElement('div');
+  e.id='excV'; e.textContent='07 · COSMÓGRAFO v7';
+  document.body.appendChild(e);
+})();
+</script>
+
+<script>
+// ---------- ecrã desperto (Screen Wake Lock) ----------
+// em ecrã inteiro a peça comporta-se como um vídeo a correr: o aparelho não adormece.
+(function(){
+  let tranca=null;
+  const emCheio=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  function marca(){
+    const s=document.getElementById('excV');
+    if(s) s.setAttribute('data-desperto', tranca?'1':'0');
+  }
+  async function pedir(){
+    if(tranca || !('wakeLock' in navigator)) return;
+    try{
+      tranca=await navigator.wakeLock.request('screen');
+      tranca.addEventListener('release',()=>{ tranca=null; marca(); });
+    }catch(e){ tranca=null; }   // recusado pelo sistema, bateria fraca, etc.
+    marca();
+  }
+  function largar(){
+    if(!tranca) return;
+    try{ tranca.release(); }catch(e){}
+    tranca=null; marca();
+  }
+  const ver=()=>emCheio()?pedir():largar();
+  document.addEventListener('fullscreenchange',ver);
+  document.addEventListener('webkitfullscreenchange',ver);
+  // o sistema larga a tranca quando o separador vai para trás: recupera-se ao voltar
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && emCheio()) pedir(); });
+  addEventListener('pagehide',largar);
+  ver();
+})();
+</script>
+</body>
+</html>
