@@ -518,6 +518,7 @@ export default {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return new Response('Não encontrado', { status: 404 });
     if (request.method === 'OPTIONS') return json({ ok: true });
+    if (url.pathname === '/api/cosmos') return cosmos(request, env, url);
     if (url.pathname !== '/api/colmeia') return json({ erro: 'rota desconhecida' }, 404);
     if (!env.DB) return json({ erro: 'sem base de dados ligada' }, 503);
 
