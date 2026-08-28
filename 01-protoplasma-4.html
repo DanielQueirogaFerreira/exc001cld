@@ -635,6 +635,7 @@ requestAnimationFrame(frame);
     'border-radius:3px;color:rgba(255,255,255,.62);background:rgba(0,0,0,.34);'+
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
     'transition:opacity .4s}'+
+    '.deck,footer{padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}'+'@media (max-width:560px){.deck,footer{padding-bottom:calc(30px + env(safe-area-inset-bottom,0px))}}'+'.hint,.meta{margin-bottom:2px}'+
     'html.zen #excV{opacity:0}';
   document.head.appendChild(st);
   const e=document.createElement('div');
