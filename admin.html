@@ -90,6 +90,7 @@
     <h1>Administração<em>EXC001CLD · contas, papéis e inspeções</em></h1>
   </div>
   <div class="quem" id="quem"></div>
+  <button class="leve" id="bSairTopo" style="display:none">SAIR</button>
 </header>
 
 <!-- ---------- entrada ---------- -->
@@ -100,7 +101,12 @@
       <button id="abaCriar">Criar conta</button>
     </div>
     <p id="explica">Inspetores registam o que encontram nos lugares gerados; administradores
-      tratam de contas e papéis. A primeira conta criada fica administradora.</p>
+      tratam de contas, convites e papéis. <b>A entrada é por convite</b> — peça um a quem já
+      esteja dentro. A primeira conta do sistema é a exceção: essa nasce administradora.</p>
+    <div id="campoConvite" class="oculto">
+      <label for="convite">código do convite</label>
+      <input id="convite" maxlength="12" placeholder="8 símbolos" style="letter-spacing:.2em;text-transform:uppercase">
+    </div>
     <label for="email">email</label>
     <input id="email" type="email" autocomplete="username" placeholder="voce@exemplo.pt">
     <div id="campoNome" class="oculto">
@@ -126,8 +132,10 @@
     <button data-aba="registar" aria-pressed="true">Registar inspeção</button>
     <button data-aba="tudo">Inspeções</button>
     <button data-aba="minhas">As minhas</button>
+    <button data-aba="catalogo">Catálogo de coordenadas</button>
     <button data-aba="contas" id="abaContas" class="oculto">Contas</button>
-    <button class="leve" id="bSair">Sair</button>
+    <button data-aba="convites" id="abaConvites" class="oculto">Convites</button>
+
   </div>
 
   <div id="pRegistar">
@@ -163,6 +171,53 @@
     <div id="tabela"></div>
   </div>
 
+  <div id="pCatalogo" class="oculto">
+    <h2>Catálogo de coordenadas</h2>
+    <p>Cada corpo tem uma assinatura de doze símbolos que o localiza a menos de um metro.
+      A <b>camada</b> é a regra de correspondência entre a Terra e o Grupo Local: hoje temos a
+      camada 1; quando mudarmos a regra, a camada seguinte guarda outro mapeamento sem apagar este.</p>
+    <div class="caixa">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:190px">
+          <label for="catTipo">procurar corpos do tipo</label>
+          <select id="catTipo"></select>
+        </div>
+        <div style="width:96px">
+          <label for="catQuantos">quantos</label>
+          <input id="catQuantos" type="number" min="1" max="40" value="6">
+        </div>
+        <div style="width:96px">
+          <label for="catCamada">camada</label>
+          <input id="catCamada" type="number" min="1" max="99" value="1">
+        </div>
+      </div>
+      <div class="linha">
+        <button id="bVarrer">VARRER O GLOBO</button>
+        <button class="leve" id="bJuntar" disabled>JUNTAR AO CATÁLOGO</button>
+      </div>
+      <p class="erro" id="erro3"></p>
+      <div id="varridos"></div>
+    </div>
+    <h2>No catálogo</h2>
+    <div id="tabelaCat"></div>
+  </div>
+
+  <div id="pConvites" class="oculto">
+    <h2>Convites</h2>
+    <p>Cada convite serve uma vez e queima-se ao ser usado. Escolha o papel que a pessoa terá.</p>
+    <div class="caixa">
+      <label for="convPapel">papel</label>
+      <select id="convPapel">
+        <option value="inspetor">inspetor</option>
+        <option value="administrador">administrador</option>
+      </select>
+      <label for="convNota">para quem é (nota interna)</label>
+      <input id="convNota" maxlength="60" placeholder="ex.: equipa de campo, Marta">
+      <div class="linha"><button id="bConvidar">GERAR CONVITE</button></div>
+    </div>
+    <div id="tabelaConv"></div>
+  </div>
+
   <div id="pContas" class="oculto">
     <h2>Contas</h2>
     <p>Um administrador vê a infraestrutura toda e muda papéis. Um inspetor regista e apaga
@@ -173,6 +228,7 @@
 
 <footer><a href="index.html">voltar ao laboratório</a></footer>
 
+<script src="nucleo.js"></script>
 <script>
 (function(){
 "use strict";
@@ -195,13 +251,16 @@ function pintarQuem(){
     '<span class="papel '+(eu.papel==='administrador'?'adm':'ins')+'">'+eu.papel+'</span>';
 }
 function mostrarMesa(){
+  el('bSairTopo').style.display='';
   el('portao').classList.add('oculto');
   el('mesa').classList.remove('oculto');
   el('abaContas').classList.toggle('oculto', eu.papel!=='administrador');
+  el('abaConvites').classList.toggle('oculto', eu.papel!=='administrador');
   pintarQuem();
   abrir('registar');
 }
 function mostrarPortao(){
+  el('bSairTopo').style.display='none';
   el('mesa').classList.add('oculto');
   el('portao').classList.remove('oculto');
   eu=null; pintarQuem();
@@ -243,6 +302,7 @@ function trocarModo(m){
   el('abaEntrar').setAttribute('aria-pressed', m==='entrar');
   el('abaCriar').setAttribute('aria-pressed', m==='registar');
   el('campoNome').classList.toggle('oculto', m!=='registar');
+  el('campoConvite').classList.toggle('oculto', m!=='registar');
   el('bEntrar').textContent = m==='entrar' ? 'ENTRAR' : 'CRIAR CONTA';
   el('senha').setAttribute('autocomplete', m==='entrar'?'current-password':'new-password');
   el('erro').textContent='';
@@ -251,7 +311,8 @@ el('bEntrar').onclick=async()=>{
   el('erro').textContent='';
   try{
     const d=await api('conta',{acao:modo==='entrar'?'entrar':'registar',
-      email:el('email').value, senha:el('senha').value, nome:el('nome').value});
+      email:el('email').value, senha:el('senha').value, nome:el('nome').value,
+      convite:el('convite').value});
     guardarTok(d.tok); eu=d.eu; el('senha').value='';
     mostrarMesa();
   }catch(e){ el('erro').textContent=e.message; }
@@ -266,12 +327,17 @@ function abrir(aba){
   el('pRegistar').classList.toggle('oculto', aba!=='registar');
   el('pLista').classList.toggle('oculto', aba!=='tudo'&&aba!=='minhas');
   el('pContas').classList.toggle('oculto', aba!=='contas');
+  el('pCatalogo').classList.toggle('oculto', aba!=='catalogo');
+  el('pConvites').classList.toggle('oculto', aba!=='convites');
   if(aba==='tudo'||aba==='minhas') carregarInspecoes(aba==='minhas');
   if(aba==='contas') carregarContas();
+  if(aba==='convites') carregarConvites();
+  if(aba==='catalogo') { encherTipos(); carregarCatalogo(); }
 }
 document.querySelectorAll('[data-aba]').forEach(b=>b.onclick=()=>abrir(b.dataset.aba));
-el('bSair').onclick=async()=>{ try{ await api('conta',{acao:'sair'}); }catch(e){}
-  guardarTok(''); mostrarPortao(); };
+async function sair(){ try{ await api('conta',{acao:'sair'}); }catch(e){}
+  guardarTok(''); mostrarPortao(); }
+el('bSairTopo').onclick=sair;
 
 // ---------- inspeções ----------
 el('bRegistar').onclick=async()=>{
@@ -350,6 +416,104 @@ async function carregarContas(){
   }catch(e){ el('tabelaContas').innerHTML='<p class="vazio">'+e.message+'</p>'; }
 }
 
+
+// ---------- convites ----------
+async function carregarConvites(){
+  el('tabelaConv').innerHTML='<p class="vazio">a carregar…</p>';
+  try{ pintarConvites((await api('conta',{acao:'convites'})).convites); }
+  catch(e){ el('tabelaConv').innerHTML='<p class="vazio">'+e.message+'</p>'; }
+}
+function pintarConvites(lista){
+  if(!lista.length){ el('tabelaConv').innerHTML='<p class="vazio">nenhum convite emitido.</p>'; return; }
+  el('tabelaConv').innerHTML='<table><thead><tr><th>código</th><th>papel</th><th>para</th>'+
+    '<th>estado</th><th></th></tr></thead><tbody>'+lista.map(c=>
+    '<tr><td class="cod">'+c.cod+'</td>'+
+    '<td><span class="papel '+(c.papel==='administrador'?'adm':'ins')+'">'+c.papel+'</span></td>'+
+    '<td class="nota">'+(c.nota||'—')+'</td>'+
+    '<td class="nota">'+(c.usado?('usado por '+c.usado_por):'por usar')+'</td>'+
+    '<td>'+(c.usado?'':'<button class="leve" data-cp="'+c.cod+'" style="padding:6px 10px">COPIAR</button>'+
+      '<button class="leve" data-del="'+c.cod+'" style="padding:6px 10px">✕</button>')+'</td></tr>').join('')+
+    '</tbody></table>';
+  document.querySelectorAll('[data-cp]').forEach(b=>b.onclick=async()=>{
+    try{ await navigator.clipboard.writeText(b.dataset.cp); }catch(e){}
+    b.textContent='COPIADO'; setTimeout(()=>b.textContent='COPIAR',1400);
+  });
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    try{ pintarConvites((await api('conta',{acao:'apagar-convite',cod:b.dataset.del})).convites); }catch(e){}
+  });
+}
+el('bConvidar').onclick=async()=>{
+  try{
+    const d=await api('conta',{acao:'convidar',papel:el('convPapel').value,nota:el('convNota').value});
+    el('convNota').value='';
+    pintarConvites(d.convites);
+  }catch(e){ el('tabelaConv').innerHTML='<p class="vazio">'+e.message+'</p>'; }
+};
+
+// ---------- catálogo de coordenadas ----------
+let varridos=[];
+function encherTipos(){
+  const sel=el('catTipo');
+  if(sel.options.length || !window.NUCLEO) return;
+  NUCLEO.TIPOS.slice().sort((a,b)=>a.freq-b.freq).forEach(t=>{
+    const o=document.createElement('option');
+    o.value=t.n; o.textContent=t.n+'  ·  '+(t.freq*100).toFixed(1)+'% do céu  ·  '+t.valor+' pt';
+    sel.appendChild(o);
+  });
+}
+el('bVarrer').onclick=()=>{
+  el('erro3').textContent='';
+  if(!window.NUCLEO){ el('erro3').textContent='o núcleo não carregou'; return; }
+  const tipo=el('catTipo').value;
+  const n=Math.max(1,Math.min(40,+el('catQuantos').value||6));
+  el('varridos').innerHTML='<p class="vazio">a varrer o globo…</p>';
+  setTimeout(()=>{
+    varridos=NUCLEO.amostras(tipo,n,200000);
+    if(!varridos.length){ el('varridos').innerHTML='<p class="vazio">nada encontrado nesta varredura.</p>';
+      el('bJuntar').disabled=true; return; }
+    el('bJuntar').disabled=false;
+    el('varridos').innerHTML='<table><thead><tr><th>coordenada</th><th>nome</th><th>galáxia</th>'+
+      '<th>valor</th></tr></thead><tbody>'+varridos.map(v=>
+      '<tr><td class="cod">'+v.cod+'</td><td>'+v.nome+'</td>'+
+      '<td class="nota">'+v.gal+'</td><td>'+v.valor+' pt</td></tr>').join('')+'</tbody></table>';
+  },30);
+};
+el('bJuntar').onclick=async()=>{
+  try{
+    const d=await api('catalogo',{acao:'juntar',camada:+el('catCamada').value||1,
+      itens:varridos.map(v=>({cod:v.cod,tipo:v.tipo,nome:v.nome,gal:v.gal,valor:v.valor,la:v.la,lo:v.lo}))});
+    el('varridos').innerHTML=''; varridos=[]; el('bJuntar').disabled=true;
+    pintarCatalogo(d.catalogo);
+  }catch(e){ el('erro3').textContent=e.message; }
+};
+async function carregarCatalogo(){
+  el('tabelaCat').innerHTML='<p class="vazio">a carregar…</p>';
+  try{
+    const r=await fetch('api/catalogo?acao=listar');
+    const d=await r.json();
+    pintarCatalogo(d.catalogo||[]);
+  }catch(e){ el('tabelaCat').innerHTML='<p class="vazio">'+e.message+'</p>'; }
+}
+function pintarCatalogo(lista){
+  if(!lista.length){ el('tabelaCat').innerHTML='<p class="vazio">o catálogo está vazio.</p>'; return; }
+  const porTipo={};
+  lista.forEach(c=>{ (porTipo[c.tipo]=porTipo[c.tipo]||[]).push(c); });
+  el('tabelaCat').innerHTML='<p style="font-size:10px">'+lista.length+' corpos em '+
+    Object.keys(porTipo).length+' tipos</p><table><thead><tr><th>coordenada</th><th>corpo</th>'+
+    '<th>galáxia</th><th>camada</th><th>valor</th><th></th></tr></thead><tbody>'+
+    lista.map(c=>'<tr><td class="cod">'+c.coord+'</td>'+
+    '<td>'+c.nome+'<br><span class="nota">'+c.tipo+'</span></td>'+
+    '<td class="nota">'+c.gal+'</td><td>'+c.camada+'</td><td>'+c.valor+' pt</td>'+
+    '<td><button class="leve" data-ir="'+c.coord+'" style="padding:6px 10px">VER</button>'+
+    (eu&&eu.papel==='administrador'?'<button class="leve" data-rmc="'+c.coord+'" style="padding:6px 10px">✕</button>':'')+
+    '</td></tr>').join('')+'</tbody></table>';
+  document.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>
+    open('07-cosmografo-8.html#coord='+encodeURIComponent(b.dataset.ir),'_blank'));
+  document.querySelectorAll('[data-rmc]').forEach(b=>b.onclick=async()=>{
+    try{ pintarCatalogo((await api('catalogo',{acao:'apagar',coord:b.dataset.rmc})).catalogo); }catch(e){}
+  });
+}
+
 // ---------- arranque ----------
 (async function(){
   const m=/coord=([A-Za-z0-9\-]+)/.exec(location.hash);
@@ -375,7 +539,7 @@ async function carregarContas(){
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42)}';
   document.head.appendChild(st);
   const e=document.createElement('div');
-  e.id='excV'; e.textContent='ADMIN v3';
+  e.id='excV'; e.textContent='ADMIN v4';
   document.body.appendChild(e);
 })();
 </script>
