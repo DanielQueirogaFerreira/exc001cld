@@ -543,7 +543,7 @@ const aleatorio = (n) => {
   const b = new Uint8Array(n); crypto.getRandomValues(b);
   return [...b].map(x => x.toString(16).padStart(2, '0')).join('');
 };
-const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(e);
+const emailOk = e => /^[^@ ]+@[^@ ]+\.[^@ ]{2,}$/.test(e);
 
 async function quemE(db, tok) {
   if (!tok) return null;
@@ -678,9 +678,14 @@ export default {
       ok: true, base: !!env.DB,
       rotas: ['/api/vida', '/api/colmeia', '/api/cosmos', '/api/conta', '/api/inspecao']
     });
-    if (url.pathname === '/api/cosmos') return cosmos(request, env, url);
-    if (url.pathname === '/api/conta') return contas(request, env, url);
-    if (url.pathname === '/api/inspecao') return inspecoes(request, env, url);
+    try {
+      if (url.pathname === '/api/cosmos') return await cosmos(request, env, url);
+      if (url.pathname === '/api/conta') return await contas(request, env, url);
+      if (url.pathname === '/api/inspecao') return await inspecoes(request, env, url);
+    } catch (e) {
+      // sem isto, uma exceção aqui devolvia a página de erro do Cloudflare em HTML
+      return json({ erro: 'falha no servidor', detalhe: String((e && e.message) || e).slice(0, 300) }, 500);
+    }
     if (url.pathname !== '/api/colmeia') return json({ erro: 'rota desconhecida' }, 404);
     if (!env.DB) return json({ erro: 'sem base de dados ligada' }, 503);
 
