@@ -556,5 +556,24 @@ requestAnimationFrame(frame);
 })();
 })();
 </script>
+
+<script>
+// ---------- selo de versão ----------
+(function(){
+  const st=document.createElement('style');
+  st.textContent='#excV{position:fixed;left:calc(9px + env(safe-area-inset-left,0px));'+
+    'bottom:calc(9px + env(safe-area-inset-bottom,0px));z-index:14;pointer-events:none;'+
+    'font:500 8.5px/1 ui-monospace,monospace;letter-spacing:.16em;padding:4px 6px;'+
+    'border-radius:3px;color:rgba(255,255,255,.62);background:rgba(0,0,0,.34);'+
+    '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
+    'transition:opacity .4s}'+
+    'html.zen #excV{opacity:0}';
+  document.head.appendChild(st);
+  const e=document.createElement('div');
+  e.id='excV'; e.textContent='05 · ESCUTA v2';
+  e.setAttribute('aria-label','versão deste ambiente');
+  document.body.appendChild(e);
+})();
+</script>
 </body>
 </html>
