@@ -48,6 +48,9 @@
   .bar button[aria-current="true"]{color:var(--void);background:var(--ink)}
   .bar button:focus-visible{outline:2px solid var(--live);outline-offset:1px}
   .bar .sep{width:1px;height:14px;background:var(--line);margin:0 2px}
+  .bar.compacta button[data-go]:not(.atual){display:none}
+  .bar.compacta .sep{display:none}
+  .bar.compacta{gap:1px}
   .bar .fsbtn{width:26px;height:26px;flex:0 0 26px;border:0;margin:0;padding:0}
   .bar .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
     stroke-linecap:round;stroke-linejoin:round}
@@ -170,6 +173,7 @@
       allow="fullscreen; gyroscope; accelerometer; magnetometer; microphone; autoplay; geolocation; screen-wake-lock"
       allowfullscreen></iframe>
     <div class="bar" role="group" aria-label="Navegação entre ambientes">
+      <button id="bCompacta" title="Recolher a barra" aria-label="Recolher a barra" aria-expanded="true">‹</button>
       <button data-go="home" title="Voltar ao índice" aria-label="Voltar ao índice">←</button>
       <span class="sep"></span>
       <button data-go="01" title="Protoplasma">01</button>
@@ -269,8 +273,26 @@
       const stage=document.getElementById('stage'), frame=document.getElementById('frame');
       const bar=document.querySelector('.bar');
       let cur=null;
-      function mark(k){ bar.querySelectorAll('button[data-go]').forEach(b=>
-        b.setAttribute('aria-current', b.dataset.go===k ? 'true':'false')); }
+      function mark(k){ bar.querySelectorAll('button[data-go]').forEach(b=>{
+        const eu = b.dataset.go===k;
+        b.setAttribute('aria-current', eu ? 'true':'false');
+        b.classList.toggle('atual', eu);
+      }); }
+      // no telemóvel a barra nasce recolhida: sete números tapavam o selo de versão
+      const bComp=document.getElementById('bCompacta');
+      function compactar(sim){
+        bar.classList.toggle('compacta', sim);
+        bComp.textContent = sim ? '›' : '‹';
+        bComp.setAttribute('aria-expanded', !sim);
+        const lbl = sim ? 'Mostrar todos os ambientes' : 'Recolher a barra';
+        bComp.title=lbl; bComp.setAttribute('aria-label',lbl);
+        try{ localStorage.setItem('exc_barra', sim?'1':'0'); }catch(e){}
+      }
+      bComp.addEventListener('click',()=>compactar(!bar.classList.contains('compacta')));
+      (function(){
+        let g=null; try{ g=localStorage.getItem('exc_barra'); }catch(e){}
+        compactar(g===null ? innerWidth<620 : g==='1');
+      })();
       let zen=false;
       function tellZen(){
         try{ frame.contentWindow.postMessage({exc:'zen',on:zen},'*'); }catch(e){}
@@ -340,7 +362,7 @@
     '#excV[data-desperto="1"]::after{content:" \\25C9";color:#6BE7A8;margin-left:5px}';
   document.head.appendChild(st);
   const e=document.createElement('div');
-  e.id='excV'; e.textContent='EXC001CLD · ÍNDICE v2';
+  e.id='excV'; e.textContent='EXC001CLD · ÍNDICE v3';
   const palco=document.getElementById('stage');
   if(palco && !palco.hidden) e.style.display='none';
   e.setAttribute('aria-label','versão deste ambiente');
