@@ -126,7 +126,7 @@ const ESQUEMA = 8;   // subir este número refaz as tabelas
 async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
   const v = await db.prepare(`SELECT valor FROM meta WHERE chave='esquema'`).first();
-  if (v && Number(v.valor) === ESQUEMA) return;
+  if (v && Number(v.valor) === ESQUEMA) { await remendos(db); return; }
   // Só as tabelas de jogo se refazem quando o esquema muda: são estado de partida,
   // recriável. Contas, convites, inspeções e catálogo NUNCA se apagam — são trabalho
   // de pessoas, e já se perderam uma vez por minha causa.
@@ -196,6 +196,7 @@ async function tabelas(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS convites (
       cod TEXT PRIMARY KEY, papel TEXT NOT NULL, criador TEXT NOT NULL,
       criado INTEGER NOT NULL, nota TEXT NOT NULL DEFAULT '',
+      dar_convites INTEGER NOT NULL DEFAULT 0,
       usado INTEGER, usado_por TEXT)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS catalogo (
       coord TEXT PRIMARY KEY, camada INTEGER NOT NULL DEFAULT 1,
@@ -205,6 +206,15 @@ async function tabelas(db) {
   ]);
   await db.prepare(`INSERT OR REPLACE INTO meta (chave,valor) VALUES ('esquema',?)`)
     .bind(String(ESQUEMA)).run();
+  await remendos(db);
+}
+
+// acrescentos que não podem apagar dados: tentam-se sempre, e falham em silêncio se já existirem
+async function remendos(db) {
+  const tentar = async sql => { try { await db.prepare(sql).run(); } catch (e) {} };
+  await tentar(`ALTER TABLE contas ADD COLUMN convidar INTEGER NOT NULL DEFAULT 0`);
+  await tentar(`CREATE TABLE IF NOT EXISTS descobertas (
+    coord TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0, primeiro INTEGER, ultimo INTEGER)`);
 }
 
 // ---------- senha ----------
@@ -482,10 +492,20 @@ async function cosmos(request, env, url) {
     if (!chave) return json({ erro: 'achado sem chave' }, 400);
     const proc = a.p === 'DC' ? 'DC' : 'DS';
     const estado = a.e === 'visitado' ? 'visitado' : 'reconhecido';
+    // o mesmo lugar vale menos a cada vez que é descoberto: 1, 2/3, 4/9, 8/27…
+    // aproxima-se de zero sem lá chegar — quem chega primeiro leva mais
+    const agoraD = Date.now();
+    const antes = await env.DB.prepare(`SELECT n FROM descobertas WHERE coord=?`).bind(chave).first();
+    const vez = ((antes && antes.n) | 0) + 1;
+    const desconto = Math.pow(2 / 3, vez - 1);
+    await env.DB.prepare(`INSERT INTO descobertas (coord,n,primeiro,ultimo) VALUES (?,1,?,?)
+      ON CONFLICT(coord) DO UPDATE SET n=n+1, ultimo=excluded.ultimo`)
+      .bind(chave, agoraD, agoraD).run();
     let pontos = PONTOS[proc] + (estado === 'visitado' ? PONTOS.visitado : 0)
                + (a.estudos ? Math.min(3, a.estudos | 0) * PONTOS.estudo : 0)
                + Math.max(0, Math.min(5, a.prec | 0))    // pontaria: até 5 por acertar no ponto
                + Math.max(0, Math.min(12, a.raro | 0));  // raridade do corpo encontrado
+    pontos = Math.max(1, Math.round(pontos * desconto * 100) / 100);
     const ja = await env.DB.prepare(`SELECT v, pontos, estado FROM exp_achados WHERE cod=? AND chave=?`)
       .bind(cod, chave).first();
     if (ja && exp.modo === 'colaboracao' && ja.v !== v && ja.estado === estado) {
@@ -561,6 +581,13 @@ async function quemE(db, tok) {
   return c || null;
 }
 
+async function meusConvites(db, eu) {
+  const r = eu.papel === 'administrador'
+    ? await db.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all()
+    : await db.prepare(`SELECT * FROM convites WHERE criador=? ORDER BY criado DESC LIMIT 100`).bind(eu.email).all();
+  return r.results;
+}
+
 async function contas(request, env, url) {
   if (!env.DB) return json({ erro: 'sem base de dados ligada' }, 503);
   try { await tabelas(env.DB); }
@@ -593,12 +620,14 @@ async function contas(request, env, url) {
       convite = await env.DB.prepare(`SELECT * FROM convites WHERE cod=?`).bind(cod).first();
       if (!convite) return json({ erro: 'convite não existe' }, 403);
       if (convite.usado) return json({ erro: 'esse convite já foi usado' }, 403);
-      papel = convite.papel === 'administrador' ? 'administrador' : 'inspetor';
+      papel = ['administrador', 'inspetor', 'navegante'].includes(convite.papel)
+        ? convite.papel : 'navegante';
     }
     const sal = aleatorio(16);
     const chave = await derivar(senha, sal);
-    await env.DB.prepare(`INSERT INTO contas (email,nome,sal,chave,papel,criada,visto)
-      VALUES (?,?,?,?,?,?,?)`).bind(email, String(corpo.nome || '').slice(0, 40), sal, chave, papel, agora, agora).run();
+    await env.DB.prepare(`INSERT INTO contas (email,nome,sal,chave,papel,criada,visto,convidar)
+      VALUES (?,?,?,?,?,?,?,?)`).bind(email, String(corpo.nome || '').slice(0, 40), sal, chave,
+        papel, agora, agora, papel === 'administrador' ? 1 : (convite && convite.dar_convites ? 1 : 0)).run();
     const t = aleatorio(24);
     const passos = [env.DB.prepare(`INSERT INTO sessoes (tok,email,expira) VALUES (?,?,?)`)
       .bind(t, email, agora + SESSAO_MS)];
@@ -633,32 +662,47 @@ async function contas(request, env, url) {
 
   if (acao === 'lista') {
     if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
-    const r = await env.DB.prepare(`SELECT email,nome,papel,criada,visto FROM contas ORDER BY criada`).all();
+    const r = await env.DB.prepare(`SELECT email,nome,papel,convidar,criada,visto FROM contas ORDER BY criada`).all();
     return json({ contas: r.results });
   }
 
   if (acao === 'convidar') {
-    if (eu.papel !== 'administrador') return json({ erro: 'só administradores convidam' }, 403);
-    const papel = corpo.papel === 'administrador' ? 'administrador' : 'inspetor';
+    const podeConvidar = eu.papel === 'administrador' || !!eu.convidar;
+    if (!podeConvidar) return json({ erro: 'não tem permissão para convidar' }, 403);
+    let papel = ['administrador', 'inspetor', 'navegante'].includes(corpo.papel) ? corpo.papel : 'navegante';
+    // quem não é administrador nunca cria administradores
+    if (eu.papel !== 'administrador' && papel === 'administrador') papel = 'inspetor';
+    const darConvites = eu.papel === 'administrador' && !!corpo.dar_convites ? 1 : 0;
     const cod = (aleatorio(4).toUpperCase().replace(/[^0-9A-F]/g, '') + '000000').slice(0, 8);
-    await env.DB.prepare(`INSERT INTO convites (cod,papel,criador,criado,nota) VALUES (?,?,?,?,?)`)
-      .bind(cod, papel, eu.email, Date.now(), String(corpo.nota || '').slice(0, 60)).run();
-    const r = await env.DB.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all();
-    return json({ cod, convites: r.results });
+    await env.DB.prepare(`INSERT INTO convites (cod,papel,criador,criado,nota,dar_convites)
+      VALUES (?,?,?,?,?,?)`)
+      .bind(cod, papel, eu.email, Date.now(), String(corpo.nota || '').slice(0, 60), darConvites).run();
+    const r = await meusConvites(env.DB, eu);
+    return json({ cod, convites: r });
   }
 
   if (acao === 'convites') {
-    if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
-    const r = await env.DB.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all();
-    return json({ convites: r.results });
+    if (eu.papel !== 'administrador' && !eu.convidar)
+      return json({ erro: 'não tem permissão para convidar' }, 403);
+    return json({ convites: await meusConvites(env.DB, eu) });
   }
 
   if (acao === 'apagar-convite') {
+    const cod = String(corpo.cod || '').toUpperCase();
+    if (eu.papel === 'administrador')
+      await env.DB.prepare(`DELETE FROM convites WHERE cod=? AND usado IS NULL`).bind(cod).run();
+    else
+      await env.DB.prepare(`DELETE FROM convites WHERE cod=? AND usado IS NULL AND criador=?`)
+        .bind(cod, eu.email).run();
+    return json({ convites: await meusConvites(env.DB, eu) });
+  }
+
+  if (acao === 'permissao') {
     if (eu.papel !== 'administrador') return json({ erro: 'só administradores' }, 403);
-    await env.DB.prepare(`DELETE FROM convites WHERE cod=? AND usado IS NULL`)
-      .bind(String(corpo.cod || '').toUpperCase()).run();
-    const r = await env.DB.prepare(`SELECT * FROM convites ORDER BY criado DESC LIMIT 100`).all();
-    return json({ convites: r.results });
+    await env.DB.prepare(`UPDATE contas SET convidar=? WHERE email=?`)
+      .bind(corpo.convidar ? 1 : 0, String(corpo.email || '').toLowerCase()).run();
+    const r = await env.DB.prepare(`SELECT email,nome,papel,convidar,criada,visto FROM contas ORDER BY criada`).all();
+    return json({ contas: r.results });
   }
 
   if (acao === 'papel') {
