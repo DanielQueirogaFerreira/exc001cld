@@ -167,7 +167,7 @@
 
   <div id="stage" hidden>
     <iframe id="frame" title="Ambiente EXC"
-      allow="fullscreen; gyroscope; accelerometer; magnetometer; microphone; autoplay; geolocation"
+      allow="fullscreen; gyroscope; accelerometer; magnetometer; microphone; autoplay; geolocation; screen-wake-lock"
       allowfullscreen></iframe>
     <div class="bar" role="group" aria-label="Navegação entre ambientes">
       <button data-go="home" title="Voltar ao índice" aria-label="Voltar ao índice">←</button>
@@ -336,7 +336,8 @@
     'border-radius:3px;color:rgba(255,255,255,.62);background:rgba(0,0,0,.34);'+
     '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
     'transition:opacity .4s}'+
-    'html.zen #excV{opacity:0}';
+    'html.zen #excV{opacity:0}'+
+    '#excV[data-desperto="1"]::after{content:" \\25C9";color:#6BE7A8;margin-left:5px}';
   document.head.appendChild(st);
   const e=document.createElement('div');
   e.id='excV'; e.textContent='EXC001CLD · ÍNDICE v2';
@@ -344,6 +345,39 @@
   if(palco && !palco.hidden) e.style.display='none';
   e.setAttribute('aria-label','versão deste ambiente');
   document.body.appendChild(e);
+})();
+</script>
+
+<script>
+// ---------- ecrã desperto (Screen Wake Lock) ----------
+// em ecrã inteiro a peça comporta-se como um vídeo a correr: o aparelho não adormece.
+(function(){
+  let tranca=null;
+  const emCheio=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  function marca(){
+    const s=document.getElementById('excV');
+    if(s) s.setAttribute('data-desperto', tranca?'1':'0');
+  }
+  async function pedir(){
+    if(tranca || !('wakeLock' in navigator)) return;
+    try{
+      tranca=await navigator.wakeLock.request('screen');
+      tranca.addEventListener('release',()=>{ tranca=null; marca(); });
+    }catch(e){ tranca=null; }   // recusado pelo sistema, bateria fraca, etc.
+    marca();
+  }
+  function largar(){
+    if(!tranca) return;
+    try{ tranca.release(); }catch(e){}
+    tranca=null; marca();
+  }
+  const ver=()=>emCheio()?pedir():largar();
+  document.addEventListener('fullscreenchange',ver);
+  document.addEventListener('webkitfullscreenchange',ver);
+  // o sistema larga a tranca quando o separador vai para trás: recupera-se ao voltar
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && emCheio()) pedir(); });
+  addEventListener('pagehide',largar);
+  ver();
 })();
 </script>
 </body>
