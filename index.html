@@ -278,10 +278,14 @@
         const f=MAP[k]; if(!f) return;
         if(cur!==k){ frame.src=f; cur=k; }
         stage.hidden=false; mark(k);
+        const sel=document.getElementById('excV');   // quem manda é o selo do ambiente
+        if(sel) sel.style.display='none';
         if(location.hash.slice(1)!==k) history.replaceState(null,'','#'+k);
       }
       function home(){
         stage.hidden=true; frame.removeAttribute('src'); cur=null; mark(null);
+        const sel=document.getElementById('excV');
+        if(sel) sel.style.display='';
         history.replaceState(null,'',location.pathname+location.search);
       }
       document.querySelectorAll('a.item[data-key]').forEach(a=>a.addEventListener('click',e=>{
@@ -322,6 +326,8 @@
   document.head.appendChild(st);
   const e=document.createElement('div');
   e.id='excV'; e.textContent='EXC001CLD · ÍNDICE v1';
+  const palco=document.getElementById('stage');
+  if(palco && !palco.hidden) e.style.display='none';
   e.setAttribute('aria-label','versão deste ambiente');
   document.body.appendChild(e);
 })();
