@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ESCUTA — a sala entra na peça</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --tinta:#05080F;
+    --gelo:#DCEBF7;
+    --dim:#6B7C92;
+    --line:rgba(220,235,247,.18);
+    --sinal:#7FD8FF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--tinta);color:var(--gelo);overflow:hidden}
+  body{font-family:"JetBrains Mono",ui-monospace,monospace;-webkit-font-smoothing:antialiased;
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  .shell{position:fixed;inset:0;pointer-events:none;display:grid;
+    grid-template-rows:auto 1fr auto;padding:clamp(14px,2.4vw,30px)}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+  h1{font-family:"Big Shoulders Display",sans-serif;font-weight:800;
+    font-size:clamp(44px,11vw,120px);line-height:.78;letter-spacing:-.01em;text-transform:uppercase;
+    text-shadow:0 2px 22px rgba(5,8,15,.9)}
+  h1 em{display:block;font-style:normal;font-weight:500;font-family:"JetBrains Mono",monospace;
+    font-size:clamp(9px,1.5vw,12px);letter-spacing:.34em;color:var(--dim);margin-top:1.1em;
+    text-shadow:none}
+  .plate{background:rgba(5,8,15,.34);border-radius:5px;
+    -webkit-backdrop-filter:blur(9px) brightness(.34) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.34) saturate(.9)}
+  @supports not (backdrop-filter: blur(2px)){
+    .plate{background:rgba(5,8,15,.88)}
+    .group{background:rgba(5,8,15,.92)}
+  }
+  .cartel{max-width:31ch;text-align:right;font-size:11px;line-height:1.75;color:var(--dim);
+    font-weight:300;padding:8px 11px;border-radius:5px}
+  .cartel b{color:var(--gelo);font-weight:500}
+  .privado{display:block;margin-top:.7em;color:var(--sinal);letter-spacing:.06em}
+
+  .readout{align-self:end;display:flex;flex-wrap:wrap;gap:8px;row-gap:10px;
+    margin-bottom:14px;font-size:11px}
+  .cell{padding:6px 9px 7px;border-radius:4px;background:rgba(5,8,15,.34);
+    border:1px solid rgba(220,235,247,.12);
+    -webkit-backdrop-filter:blur(9px) brightness(.34) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.34) saturate(.9)}
+  .cell span{display:block;color:var(--dim);font-size:9px;letter-spacing:.22em;margin-bottom:3px}
+  .cell b{font-weight:500;font-variant-numeric:tabular-nums;font-size:14px;
+    display:inline-block;white-space:nowrap}
+  /* largura reservada pelo texto mais longo que cada campo pode mostrar */
+  #rLvl{min-width:11.5ch}
+  #rHz{min-width:7.5ch}
+  #rBands{min-width:10.5ch}
+  #rE{min-width:5.5ch}
+  #rState{min-width:14ch}
+  #rSrc{min-width:21ch}
+  .vu{display:inline-block;width:52px;height:3px;background:rgba(220,235,247,.16);
+    vertical-align:3px;margin-left:7px;border-radius:2px;overflow:hidden}
+  .vu i{display:block;height:100%;width:0;background:var(--sinal)}
+
+  .deck{display:flex;gap:7px;flex-wrap:wrap;align-items:center;pointer-events:auto}
+  .group{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;
+    background:rgba(5,8,15,.82);backdrop-filter:blur(8px)}
+  button,a.btn{font:inherit;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    display:inline-block;text-decoration:none;line-height:normal;
+    background:transparent;color:var(--dim);border:0;border-right:1px solid var(--line);
+    padding:6px 9px;cursor:pointer;transition:.18s}
+  .group button:last-child{border-right:0}
+  button:hover,a.btn:hover{color:var(--gelo);background:rgba(127,216,255,.14)}
+  button[aria-pressed="true"]{background:var(--sinal);color:var(--tinta)}
+  button:focus-visible,a.btn:focus-visible{outline:2px solid var(--sinal);outline-offset:-2px}
+  .fsbtn{width:26px;height:26px;padding:0;display:grid;place-items:center;flex:0 0 26px}
+  .fsbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .fsbtn .ic-out{display:none}
+  .fsbtn[aria-pressed="true"] .ic-in{display:none}
+  .fsbtn[aria-pressed="true"] .ic-out{display:inline}
+  .hint{font-size:10px;color:var(--dim);letter-spacing:.08em;margin-left:auto;text-align:right;
+    padding:6px 9px;border-radius:5px;transition:opacity .8s;line-height:1.7}
+  .hint.gone{opacity:0}
+
+  .ask{position:fixed;inset:0;display:grid;place-items:center;z-index:5;pointer-events:auto;
+    background:radial-gradient(60% 60% at 50% 50%,rgba(5,8,15,.88),rgba(5,8,15,.98));
+    transition:opacity .5s}
+  .ask.off{opacity:0;pointer-events:none}
+  .ask[hidden]{display:none}
+  .ask button{border:1px solid var(--sinal);color:var(--gelo);padding:16px 30px;font-size:10px;
+    letter-spacing:.28em;background:transparent;cursor:pointer}
+  .ask p{margin-top:18px;font-size:11px;color:var(--dim);line-height:2;text-align:center;max-width:36ch}
+  .ask p b{color:var(--sinal)}
+  .cartao{max-width:min(440px,88vw);max-height:84vh;overflow:auto;padding:24px 22px;
+    border:1px solid var(--line);border-radius:6px;background:rgba(5,8,15,.8);text-align:left}
+  .cartao h2{font-family:"Big Shoulders Display",sans-serif;font-weight:800;font-size:17px;
+    text-transform:uppercase;letter-spacing:.02em;margin-bottom:12px}
+  .cartao p{font-size:11.5px;line-height:1.8;color:var(--dim);margin-bottom:12px}
+  .cartao p b{color:var(--gelo)}
+  .achados{display:flex;flex-direction:column;gap:7px}
+  .est{display:grid;grid-template-columns:16px 1fr auto;gap:4px 9px;align-items:baseline;
+    padding:7px 0;border-bottom:1px solid rgba(220,235,247,.08)}
+  .est .marca{color:var(--dim)}
+  .est.ok .marca{color:var(--sinal)}
+  .est .nm{font-size:12px;color:var(--dim)}
+  .est.ok .nm{color:var(--gelo)}
+  .est.agora .nm{color:var(--sinal)}
+  .est .pt{font-size:10px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .est .dica{grid-column:2 / -1;font-size:10px;color:var(--dim);opacity:.75;line-height:1.6}
+  .ask .skip{margin-top:22px;border-color:var(--line);color:var(--dim);padding:10px 18px;letter-spacing:.2em}
+  @media (max-width:640px){
+    .cartel{display:none}
+    .readout{display:grid;grid-template-columns:1fr 1fr;gap:7px;align-items:stretch}
+    .readout .cell{min-width:0}
+    .readout .cell b{min-width:0;font-size:13px}
+    .readout .cell:nth-child(5){grid-column:1 / -1}   /* estado */
+    .readout .cell:nth-child(6){grid-column:1 / -1}   /* entrada */
+    .vu{width:38px}
+  }
+  @media (pointer:coarse){ button,a.btn{padding:8px 10px;font-size:9.5px} }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Membrana que vibra com o som da sala"></canvas>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1>Escuta<em>membrana · equação de onda · espectro em anel</em></h1>
+    </div>
+    <p class="cartel plate">Uma membrana esticada sobre o ecrã. O som do sítio onde você está
+      bate nela: os <b>graves ao centro</b>, os <b>agudos na borda</b>. As ondas cruzam-se,
+      interferem, e o silêncio deixa a pele cicatrizar.
+      <span class="privado">o áudio é analisado no aparelho e nunca sai dele</span></p>
+  </header>
+
+  <div class="readout" style="pointer-events:none">
+    <div class="cell"><span>NÍVEL</span><b id="rLvl">—<i class="vu"><i id="vuBar"></i></i></b></div>
+    <div class="cell"><span>DOMINANTE</span><b id="rHz">—</b></div>
+    <div class="cell"><span>GRAVE·MÉDIO·AGUDO</span><b id="rBands">—</b></div>
+    <div class="cell"><span>ENERGIA</span><b id="rE">—</b></div>
+    <div class="cell" id="celEstado" style="pointer-events:auto;cursor:pointer">
+      <span>ESTADO ⌄</span><b id="rState">em silêncio</b></div>
+    <div class="cell"><span>ENTRADA</span><b id="rSrc">—</b></div>
+  </div>
+
+  <div class="deck">
+    <div class="group">
+      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+    </div>
+    <div class="group" role="group" aria-label="Sensibilidade">
+      <button data-sens="0">Baixa</button>
+      <button data-sens="1" aria-pressed="true">Média</button>
+      <button data-sens="2">Alta</button>
+    </div>
+    <div class="group" role="group" aria-label="Pele">
+      <button data-pal="0" aria-pressed="true">Gelo</button>
+      <button data-pal="1">Cobre</button>
+      <button data-pal="2">Sonar</button>
+    </div>
+    <div class="group">
+      <button id="bMic" aria-pressed="false">Ouvir</button>
+      <button id="bSrc" title="Trocar a entrada de áudio">auto</button>
+      <button id="bWipe">Acalmar</button>
+      <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
+    </div>
+    <p class="hint plate" id="hint">fale, assobie, bata palmas · toque também faz onda</p>
+  </div>
+</div>
+
+<div class="ask" id="ask">
+  <div style="text-align:center">
+    <button id="bAsk">DEIXAR OUVIR</button>
+    <p>a peça precisa do microfone para sentir a sala.<br>
+      <b>o som é analisado aqui dentro, não é gravado nem enviado a lado nenhum.</b></p>
+    <button class="skip" id="bSkip">ENTRAR SEM SOM</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('c'), ctx=cv.getContext('2d',{alpha:false});
+const off=document.createElement('canvas'), octx=off.getContext('2d',{alpha:false});
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ================= peles =================
+const PAL=[
+  {name:'gelo',  fundo:[6,10,20],   vale:[10,26,52],  crista:[190,236,255], brilho:[127,216,255]},
+  {name:'cobre', fundo:[14,9,6],    vale:[46,24,12],  crista:[255,214,160], brilho:[255,150,60]},
+  {name:'sonar', fundo:[3,12,9],    vale:[8,38,28],   crista:[170,255,206], brilho:[64,255,170]}
+];
+let pal=PAL[0], sens=1;
+const SENS=[0.55,1.0,1.9];
+
+// ================= membrana =================
+// equação de onda discreta: u" = c²∇²u, com perda. Nada de truques.
+let W=0,H=0,N=0, u=null, v=null, mem=null, img=null, px=null;
+const C2=0.30, LOSS=0.9965;
+
+function build(){
+  const vw=Math.max(320,innerWidth), vh=Math.max(320,innerHeight);
+  const s=Math.max(2.4, Math.min(4.2, vw/190));
+  W=Math.max(120,Math.round(vw/s)); H=Math.max(160,Math.round(vh/s)); N=W*H;
+  off.width=W; off.height=H;
+  img=octx.createImageData(W,H); px=img.data;
+  for(let i=3;i<px.length;i+=4) px[i]=255;
+  u=new Float32Array(N); v=new Float32Array(N); mem=new Float32Array(N);
+  view();
+}
+function view(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  cv.width=Math.round(innerWidth*dpr); cv.height=Math.round(innerHeight*dpr);
+  ctx.imageSmoothingEnabled=true;
+}
+function calm(){ u.fill(0); v.fill(0); mem.fill(0); }
+
+function wave(){
+  // bordas fixas: a membrana está presa ao caixilho
+  for(let y=1;y<H-1;y++){
+    const row=y*W;
+    for(let x=1;x<W-1;x++){
+      const i=row+x;
+      const lap=u[i-1]+u[i+1]+u[i-W]+u[i+W]-4*u[i];
+      v[i]=(v[i]+lap*C2)*LOSS;
+    }
+  }
+  let e=0;
+  for(let i=0;i<N;i++){
+    u[i]+=v[i];
+    const a=u[i]<0?-u[i]:u[i];
+    e+=a;
+    if(a>0.55){ const m=mem[i]+(a-0.55)*0.06; mem[i]=m>1?1:m; }   // sulco
+    else mem[i]*=0.9985;                                          // cicatriza
+  }
+  energy=e/N;
+}
+function drop(gx,gy,amp,rad){
+  const cx=gx|0, cy=gy|0, r=rad|0;
+  for(let dy=-r;dy<=r;dy++){
+    const y=cy+dy; if(y<1||y>=H-1) continue;
+    for(let dx=-r;dx<=r;dx++){
+      const x=cx+dx; if(x<1||x>=W-1) continue;
+      const d=Math.sqrt(dx*dx+dy*dy); if(d>r) continue;
+      v[y*W+x] += amp*(1+Math.cos(Math.PI*d/r))*0.5;
+    }
+  }
+}
+
+// ================= a sala =================
+let ac=null, an=null, freq=null, stream=null, listening=false;
+let level=0, hz=0, bands=[0,0,0], energy=0, BINS=54, phase=0;
+
+let inputs=[], inputIx=-1;
+// o Android troca o Bluetooth para o perfil de chamada quando um site pede
+// o microfone do próprio auricular. Pedindo o microfone interno do telefone,
+// o carro costuma continuar em A2DP — estéreo, música a tocar.
+const EVITAR=/bluetooth|hands.?free|headset|hfp|sco|carro|car|auto/i;
+const PREFERIR=/built|interno|internal|telefone|phone|default|padr/i;
+function pontuar(d){
+  const L=(d.label||'').toLowerCase();
+  let s=0;
+  if(EVITAR.test(L)) s-=10;
+  if(PREFERIR.test(L)) s+=4;
+  if(d.deviceId==='default') s+=1;
+  return s;
+}
+async function listarEntradas(){
+  try{
+    const ds=await navigator.mediaDevices.enumerateDevices();
+    inputs=ds.filter(d=>d.kind==='audioinput');
+    inputs.sort((a,b)=>pontuar(b)-pontuar(a));
+  }catch(e){ inputs=[]; }
+}
+function rotuloEntrada(){
+  if(inputIx<0||!inputs[inputIx]) return 'auto';
+  const L=inputs[inputIx].label||'entrada '+(inputIx+1);
+  return L.length>16 ? L.slice(0,15)+'…' : L;
+}
+async function abrir(deviceId){
+  const audio={echoCancellation:false, noiseSuppression:false, autoGainControl:false,
+               channelCount:{ideal:2}};
+  if(deviceId) audio.deviceId={exact:deviceId};
+  return navigator.mediaDevices.getUserMedia({audio});
+}
+async function openMic(){
+  try{
+    stream=await abrir(null);                 // primeiro pedido: só para haver permissão
+    await listarEntradas();
+    if(inputs.length){
+      const alvo=inputs[0];
+      const atual=stream.getAudioTracks()[0];
+      const idAtual=atual.getSettings?atual.getSettings().deviceId:null;
+      if(alvo.deviceId && alvo.deviceId!==idAtual && pontuar(alvo)>=0){
+        try{
+          const novo=await abrir(alvo.deviceId);
+          stream.getTracks().forEach(t=>t.stop());
+          stream=novo;
+        }catch(e){}
+      }
+      inputIx=Math.max(0, inputs.findIndex(d=>{
+        const st=stream.getAudioTracks()[0].getSettings?stream.getAudioTracks()[0].getSettings():{};
+        return d.deviceId===st.deviceId;
+      }));
+    }
+  }catch(e){ return false; }
+  ac=new (window.AudioContext||window.webkitAudioContext)();
+  const src=ac.createMediaStreamSource(stream);
+  an=ac.createAnalyser(); an.fftSize=2048; an.smoothingTimeConstant=0.72;
+  freq=new Uint8Array(an.frequencyBinCount);
+  src.connect(an);                       // não vai para as colunas: sem retorno
+  await ac.resume();
+  listening=true;
+  return true;
+}
+async function trocarEntrada(){
+  if(!inputs.length) return;
+  inputIx=(inputIx+1)%inputs.length;
+  const alvo=inputs[inputIx];
+  try{
+    const novo=await abrir(alvo.deviceId);
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=novo;
+    if(ac&&an){ ac.createMediaStreamSource(stream).connect(an); }
+    bSrc.textContent=rotuloEntrada();
+  }catch(e){ bSrc.textContent='indisponível'; }
+}
+function closeMic(){
+  listening=false;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  if(ac){ ac.close(); ac=null; an=null; }
+  level=0; hz=0; bands=[0,0,0];
+}
+function listenFrame(){
+  if(!listening||!an) return;
+  an.getByteFrequencyData(freq);
+  const n=freq.length, nyq=ac.sampleRate/2;
+  let sum=0, top=0, topI=0, b0=0,b1=0,b2=0;
+  for(let i=0;i<n;i++){
+    const val=freq[i];
+    sum+=val;
+    if(val>top){ top=val; topI=i; }
+    if(i<n*0.06) b0+=val; else if(i<n*0.26) b1+=val; else b2+=val;
+  }
+  level=sum/n/255;
+  hz=topI*nyq/n;
+  bands=[b0/(n*0.06)/255, b1/(n*0.20)/255, b2/(n*0.74)/255];
+  medir(freq,n,nyq);
+  decidirEstado();
+
+  // o espectro entra em anel: grave ao centro, agudo na borda
+  const cx=W/2, cy=H*0.5, R=Math.min(W,H)*0.46;
+  const k=SENS[sens];
+  phase+=0.004;
+  for(let i=0;i<BINS;i++){
+    const t=i/BINS;
+    const bin=Math.floor(Math.pow(t,2.1)*n*0.72)+1;
+    const amp=freq[bin]/255;
+    if(amp<0.16) continue;
+    const r=R*Math.pow(t,0.78);
+    const a=phase+i*2.399963;                       // ângulo áureo: nunca repete alinhamento
+    drop(cx+Math.cos(a)*r, cy+Math.sin(a)*r, amp*amp*2.6*k, 2+Math.round(3*(1-t)));
+  }
+}
+
+
+// ================= os estados da sala =================
+// Doze condições que se alcançam com a voz e com o som do sítio.
+// Cada uma nasce de uma medida do espectro, não de um limiar solto.
+const ESTADOS=[
+  {id:'silencio', n:'silêncio',        pts:1,  dica:'menos de dois por cento de nível durante três segundos'},
+  {id:'sussurro', n:'sussurro',        pts:2,  dica:'fale muito baixo, sem parar, dois segundos'},
+  {id:'fala',     n:'fala',            pts:1,  dica:'fale em voz normal'},
+  {id:'palma',    n:'palma',           pts:2,  dica:'um estalo seco: bata palmas'},
+  {id:'grito',    n:'grito',           pts:3,  dica:'passe dos quarenta e cinco por cento de nível'},
+  {id:'chiado',   n:'chiado',          pts:3,  dica:'faça “chhhh”: ruído sem altura definida, dois segundos'},
+  {id:'grave',    n:'grave sustentado',pts:4,  dica:'segure uma nota de peito abaixo de 220 Hz'},
+  {id:'assobio',  n:'assobio',         pts:4,  dica:'assobie acima de 800 Hz, som limpo, um segundo e meio'},
+  {id:'crescendo',n:'crescendo',       pts:5,  dica:'comece baixo e suba sem parar durante três segundos'},
+  {id:'firme',    n:'nota firme',      pts:6,  dica:'segure a mesma altura sem oscilar, três segundos'},
+  {id:'tremulo',  n:'trémulo',         pts:7,  dica:'faça vibrato: a altura a oscilar depressa, sem sair da nota'},
+  {id:'harmonia', n:'harmonia',        pts:9,  dica:'duas vozes ao mesmo tempo, em oitava ou em quinta'}
+];
+let conquistas={};
+try{ conquistas=JSON.parse(localStorage.getItem('escuta_estados')||'{}'); }catch(e){ conquistas={}; }
+function guardarConquistas(){ try{ localStorage.setItem('escuta_estados',JSON.stringify(conquistas)); }catch(e){} }
+
+// medidas derivadas do espectro
+let planura=0, pico=0, hz2=0, estado='silencio', estadoDesde=0;
+const hHz=[], hNiv=[];
+function medir(freq,n,nyq){
+  // planura espectral: perto de 1 é ruído, perto de 0 é som com altura
+  let soma=0, logs=0, vivos=0, top=0, topI=0, seg=0, segI=0;
+  for(let i=2;i<n;i++){
+    const v=freq[i]/255;
+    if(v>0.004){ soma+=v; logs+=Math.log(v); vivos++; }
+    if(v>top){ seg=top; segI=topI; top=v; topI=i; }
+    else if(v>seg && Math.abs(i-topI)>4){ seg=v; segI=i; }
+  }
+  planura = vivos ? Math.exp(logs/vivos)/(soma/vivos) : 0;
+  pico = top;
+  hz = topI*nyq/n;
+  hz2 = segI*nyq/n;
+  const agora=performance.now();
+  hHz.push({t:agora,v:hz}); hNiv.push({t:agora,v:level});
+  while(hHz.length && agora-hHz[0].t>3600){ hHz.shift(); hNiv.shift(); }
+}
+function janela(arr,ms){
+  const agora=performance.now();
+  return arr.filter(x=>agora-x.t<=ms).map(x=>x.v);
+}
+function estavel(ms,tol){
+  const j=janela(hHz,ms);
+  if(j.length<8) return false;
+  const m=j.reduce((a,b)=>a+b,0)/j.length;
+  if(m<70) return false;
+  return j.every(v=>Math.abs(v-m)/m < tol);
+}
+function subindo(ms){
+  const j=janela(hNiv,ms);
+  if(j.length<12) return false;
+  const meio=Math.floor(j.length/2);
+  const a=j.slice(0,meio).reduce((x,y)=>x+y,0)/meio;
+  const b=j.slice(meio).reduce((x,y)=>x+y,0)/(j.length-meio);
+  return a>0.02 && b>a*1.7;
+}
+function oscilando(ms){
+  const j=janela(hHz,ms);
+  if(j.length<16) return false;
+  const m=j.reduce((a,b)=>a+b,0)/j.length;
+  if(m<80) return false;
+  let cruz=0, prev=j[0]-m;
+  for(const v of j){ const d=v-m; if(d*prev<0) cruz++; prev=d||prev; }
+  const amp=Math.max(...j)-Math.min(...j);
+  return cruz>=5 && amp/m>0.015 && amp/m<0.22;
+}
+function decidirEstado(){
+  if(!listening) return 'semmic';
+  const agora=performance.now();
+  const nivelAntes=hNiv.length>3?hNiv[hNiv.length-4].v:0;
+  let e='silencio';
+  if(level<0.02) e='silencio';
+  else if(level<0.06) e='sussurro';
+  else e='fala';
+  if(level>0.45) e='grito';
+  if(level-nivelAntes>0.22 && bands[2]>0.10) e='palma';
+  if(level>0.05 && planura>0.55) e='chiado';
+  if(level>0.06 && planura<0.30 && hz<220 && estavel(1800,0.09)) e='grave';
+  if(level>0.05 && planura<0.22 && hz>800 && pico>0.5 && estavel(1400,0.06)) e='assobio';
+  if(subindo(2600) && level>0.10) e='crescendo';
+  if(level>0.06 && planura<0.28 && estavel(2800,0.022)) e='firme';
+  if(level>0.06 && planura<0.35 && oscilando(1600)) e='tremulo';
+  if(level>0.08 && pico>0.45 && hz2>80 && hz>80){
+    const r=Math.max(hz,hz2)/Math.min(hz,hz2);
+    if(Math.abs(r-2)<0.09 || Math.abs(r-1.5)<0.07) e='harmonia';
+  }
+  if(e==='silencio' && agora-estadoDesde<3000 && estado!=='silencio') e=estado;
+  if(e!==estado){ estado=e; estadoDesde=agora; conquistar(e); }
+  return e;
+}
+function conquistar(id){
+  const def=ESTADOS.find(x=>x.id===id);
+  if(!def) return;
+  const c=conquistas[id]||{n:0};
+  const primeira=!c.n;
+  c.n++; c.t=Date.now(); conquistas[id]=c; guardarConquistas();
+  if(primeira){
+    const h=document.getElementById('hint');
+    h.textContent='alcançou «'+def.n+'» · +'+def.pts+' pontos';
+    h.classList.remove('gone');
+    clearTimeout(conquistar._t);
+    conquistar._t=setTimeout(()=>h.classList.add('gone'),3500);
+  }
+}
+function pontosTotais(){
+  return ESTADOS.reduce((a,e)=>a+(conquistas[e.id]?e.pts:0),0);
+}
+function abrirEstados(){
+  const feitos=ESTADOS.filter(e=>conquistas[e.id]).length;
+  abrirFolha('<h2>Estados da sala</h2>'+
+    '<p>'+feitos+' de '+ESTADOS.length+' alcançados · <b>'+pontosTotais()+' pontos</b> de '+
+    ESTADOS.reduce((a,e)=>a+e.pts,0)+'. Cada estado nasce de uma medida do espectro: nível, '+
+    'altura dominante, planura e estabilidade.</p>'+
+    '<div class="achados">'+ESTADOS.map(e=>{
+      const c=conquistas[e.id];
+      return '<div class="est'+(c?' ok':'')+(estado===e.id?' agora':'')+'">'+
+        '<i class="marca">'+(c?'✓':'·')+'</i>'+
+        '<span class="nm">'+e.n+'</span>'+
+        '<span class="dica">'+e.dica+'</span>'+
+        '<span class="pt">'+e.pts+' pt'+(c&&c.n>1?' ×'+c.n:'')+'</span></div>';
+    }).join('')+'</div>');
+}
+
+// ================= desenho =================
+function paint(){
+  const f=pal.fundo, va=pal.vale, cr=pal.crista, br=pal.brilho;
+  for(let y=0;y<H;y++){
+    const row=y*W;
+    for(let x=0;x<W;x++){
+      const i=row+x, p=i*4;
+      const hgt=u[i];
+      // inclinação da superfície: é isto que faz a luz correr nas cristas
+      const gxv=(x>0&&x<W-1)? u[i+1]-u[i-1] : 0;
+      const gyv=(y>0&&y<H-1)? u[i+W]-u[i-W] : 0;
+      let lit=0.5+(gxv*0.9+gyv*0.55)*1.6;
+      lit=lit<0?0:lit>1?1:lit;
+      const a=hgt<0?-hgt:hgt;
+      const glow=a>1?1:a;
+      const etch=mem[i];
+      const base0=f[0]+(va[0]-f[0])*etch, base1=f[1]+(va[1]-f[1])*etch, base2=f[2]+(va[2]-f[2])*etch;
+      let R=base0+(cr[0]-base0)*lit*0.75+br[0]*glow*0.55;
+      let G=base1+(cr[1]-base1)*lit*0.75+br[1]*glow*0.55;
+      let B=base2+(cr[2]-base2)*lit*0.75+br[2]*glow*0.55;
+      px[p]  =R>255?255:R;
+      px[p+1]=G>255?255:G;
+      px[p+2]=B>255?255:B;
+    }
+  }
+  octx.putImageData(img,0,0);
+  ctx.drawImage(off,0,0,cv.width,cv.height);
+}
+
+// ================= dedo =================
+const PT=new Set();
+const toGrid=e=>({x:e.clientX/innerWidth*W, y:e.clientY/innerHeight*H});
+cv.addEventListener('pointerdown',e=>{ PT.add(e.pointerId); try{cv.setPointerCapture(e.pointerId);}catch(_){}
+  const g=toGrid(e); drop(g.x,g.y,3.2,Math.max(3,W*0.03)); hide(); });
+cv.addEventListener('pointermove',e=>{ if(!PT.has(e.pointerId)) return;
+  const g=toGrid(e); drop(g.x,g.y,1.0,Math.max(2,W*0.016)); });
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,e=>PT.delete(e.pointerId)));
+cv.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ================= leitura =================
+const rLvl=document.getElementById('rLvl'), rHz=document.getElementById('rHz'),
+      rBands=document.getElementById('rBands'), rE=document.getElementById('rE'),
+      rState=document.getElementById('rState'), vuBar=document.getElementById('vuBar'),
+      rSrc=document.getElementById('rSrc');
+function hud(){
+  const db = level>0.0005 ? (20*Math.log10(level)).toFixed(0) : '−∞';
+  rLvl.firstChild.textContent = (listening? db+' dB ' : '— ');
+  vuBar.style.width=Math.min(100,level*260)+'%';
+  rHz.textContent = listening && level>0.02 ? Math.round(hz)+' Hz' : '—';
+  rBands.textContent = listening
+    ? bands.map(b=>Math.round(b*100)).join(' · ')
+    : '—';
+  rE.textContent = energy.toFixed(3);
+  if(listening&&ac){
+    const t=stream&&stream.getAudioTracks()[0];
+    const st=t&&t.getSettings?t.getSettings():{};
+    const kHz=(ac.sampleRate/1000).toFixed(1);
+    rSrc.textContent = kHz+' kHz · '+((st.channelCount||1)>1?'estéreo':'mono')
+      + (ac.sampleRate<20000 ? ' · chamada' : '');
+  } else rSrc.textContent='—';
+  if(!listening) rState.textContent='sem microfone';
+  else {
+    const def=ESTADOS.find(e=>e.id===estado);
+    rState.textContent=(def?def.n:'—')+' · '+pontosTotais()+' pt';
+  }
+}
+
+let last=performance.now(), acc=0;
+function frame(now){
+  const dt=now-last; last=now;
+  if(!document.hidden){
+    listenFrame();
+    wave(); if(!reduce) wave();
+    paint();
+  }
+  acc+=dt; if(acc>180){ hud(); acc=0; }
+  requestAnimationFrame(frame);
+}
+
+// ================= controlos =================
+function press(sel,el){ document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed', b===el?'true':'false')); }
+document.querySelectorAll('[data-sens]').forEach(b=>b.onclick=()=>{ sens=+b.dataset.sens; press('[data-sens]',b); hide(); });
+document.querySelectorAll('[data-pal]').forEach(b=>b.onclick=()=>{ pal=PAL[+b.dataset.pal]; press('[data-pal]',b); hide(); });
+document.getElementById('celEstado').onclick=abrirEstados;
+const bMic=document.getElementById('bMic');
+const bSrc=document.getElementById('bSrc');
+bSrc.onclick=()=>{ if(listening) trocarEntrada(); hide(); };
+bMic.onclick=async()=>{
+  if(listening){ closeMic(); bMic.setAttribute('aria-pressed','false'); return; }
+  const ok=await openMic();
+  bMic.setAttribute('aria-pressed', ok);
+  if(ok) bSrc.textContent=rotuloEntrada();
+  else rState.textContent='microfone recusado';
+  hide();
+};
+document.getElementById('bWipe').onclick=()=>{ calm(); hide(); };
+function abrirFolha(html){
+  let f=document.getElementById('folha');
+  if(!f){
+    f=document.createElement('div'); f.className='ask'; f.id='folha';
+    f.innerHTML='<div class="cartao" id="folhaCorpo"></div>';
+    document.body.appendChild(f);
+  }
+  document.getElementById('folhaCorpo').innerHTML=html+
+    '<button id="folhaFechar" style="margin-top:16px">FECHAR</button>';
+  f.hidden=false; f.classList.remove('off');
+  document.getElementById('folhaFechar').onclick=()=>{
+    f.classList.add('off'); setTimeout(()=>f.hidden=true,400);
+  };
+  f.onpointerdown=e=>{ if(e.target===f) document.getElementById('folhaFechar').click(); };
+}
+const hint=document.getElementById('hint'); let hidden=false;
+function hide(){ if(hidden) return; hidden=true; setTimeout(()=>hint.classList.add('gone'),2600); }
+
+const ask=document.getElementById('ask');
+document.getElementById('bAsk').onclick=async()=>{
+  const ok=await openMic();
+  bMic.setAttribute('aria-pressed', ok);
+  ask.classList.add('off'); setTimeout(()=>ask.hidden=true,600);
+  if(ok) bSrc.textContent=rotuloEntrada();
+  else rState.textContent='microfone recusado';
+};
+document.getElementById('bSkip').onclick=()=>{
+  ask.classList.add('off'); setTimeout(()=>ask.hidden=true,600);
+  drop(W/2,H/2,4,Math.max(4,W*0.05));
+};
+
+const FS_REBUILD=()=>view();
+let rz=null, lw=innerWidth, lh=innerHeight;
+addEventListener('resize',()=>{ clearTimeout(rz); rz=setTimeout(()=>{
+  const dw=Math.abs(innerWidth-lw), dh=Math.abs(innerHeight-lh);
+  if(dw<2&&dh<140) view(); else build();
+  lw=innerWidth; lh=innerHeight;
+},180); });
+addEventListener('orientationchange',()=>setTimeout(build,320));
+addEventListener('pagehide',closeMic);
+
+build();
+requestAnimationFrame(frame);
+
+// ---------- imersão: só a arte, sem números ----------
+(function(){
+  const framed = window.self!==window.top;
+  const st=document.createElement('style');
+  st.textContent =
+    '.shell,header,footer{transition:opacity .5s}'+
+    'html.zen .shell,html.zen header,html.zen footer{opacity:0;pointer-events:none}'+
+    '#zenOut{position:fixed;right:calc(10px + env(safe-area-inset-right,0px));'+
+    'bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;width:30px;height:30px;'+
+    'border-radius:50%;border:1px solid rgba(255,255,255,.5);background:rgba(0,0,0,.4);'+
+    'color:#fff;opacity:0;pointer-events:none;transition:opacity .4s;display:grid;'+
+    'place-items:center;cursor:pointer;padding:0;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}'+
+    'html.zen #zenOut{opacity:.34;pointer-events:auto}'+
+    '#zenOut:hover,#zenOut:focus-visible{opacity:.95}'+
+    '#zenOut svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}';
+  document.head.appendChild(st);
+
+  const EYE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  const EYE_OFF='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11.05 6.03 11.5 6 12 6c6.4 0 10 6 10 6s-1.2 2-3.3 3.7M6.4 8.3C3.9 9.9 2 12 2 12s3.6 6.5 10 6.5c1.3 0 2.5-.2 3.5-.6"/></svg>';
+
+  function setZen(on){
+    document.documentElement.classList.toggle('zen', !!on);
+    if(btn){ btn.setAttribute('aria-pressed', !!on); btn.innerHTML = on?EYE_OFF:EYE; }
+  }
+  const isZen=()=>document.documentElement.classList.contains('zen');
+
+  // botão no painel de controlos da própria peça, ao lado do ecrã inteiro
+  let btn=null;
+  const fsb=document.getElementById('bFs');
+  if(fsb&&fsb.parentNode){
+    btn=document.createElement('button');
+    btn.className='fsbtn'; btn.id='bZen';
+    btn.setAttribute('aria-pressed','false');
+    btn.title='Imersão: esconder números'; btn.setAttribute('aria-label',btn.title);
+    btn.innerHTML=EYE;
+    btn.addEventListener('click',()=>setZen(!isZen()));
+    fsb.parentNode.insertBefore(btn, fsb);
+    if(framed) btn.style.display='none';        // dentro do painel manda a barra
+  }
+  // saída flutuante, para quando a peça corre sozinha e tudo está escondido
+  if(!framed){
+    const out=document.createElement('button');
+    out.id='zenOut'; out.innerHTML=EYE_OFF;
+    out.title='Sair da imersão'; out.setAttribute('aria-label',out.title);
+    out.addEventListener('click',()=>setZen(false));
+    document.body.appendChild(out);
+  }
+  addEventListener('message',e=>{ if(e.data&&e.data.exc==='zen') setZen(e.data.on); });
+  addEventListener('keydown',e=>{
+    if((e.key==='z'||e.key==='Z') && !e.metaKey && !e.ctrlKey){ setZen(!isZen()); }
+    if(e.key==='Escape' && isZen()) setZen(false);
+  });
+})();
+
+// ---------- ecrã inteiro, persistente entre páginas ----------
+(function(){
+  const root=document.documentElement;
+  const btn=document.getElementById('bFs');
+  const framed = window.self!==window.top;
+  if(framed){
+    if(btn){ const g=btn.closest('.group'); (g&&g.children.length===1?g:btn).style.display='none'; }
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const g=a.closest('.group'); (g&&g.children.length===1?g:a).style.display='none';
+    });
+    const st=document.createElement('style');
+    st.textContent='.deck,footer{padding-right:184px}'+
+      '@media (max-width:560px){.deck,footer{padding-right:0;padding-bottom:46px}}';
+    document.head.appendChild(st);
+    return;
+  }
+  const can=!!(root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen);
+  const isOn=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  const req=()=>{const f=root.requestFullscreen||root.webkitRequestFullscreen||root.webkitRequestFullScreen;
+    if(!f) return null; try{ const p=f.call(root); if(p&&p.catch) p.catch(()=>{}); return p; }catch(e){ return null; }};
+  const out=()=>{const f=document.exitFullscreen||document.webkitExitFullscreen; if(f) try{ f.call(document); }catch(e){}};
+  const wanted=()=>/[?&]fs=1/.test(location.search);
+  function links(){
+    document.querySelectorAll('a[data-nav]').forEach(a=>{
+      const base=a.getAttribute('data-nav');
+      a.setAttribute('href', isOn()||wanted() ? base+'?fs=1' : base);
+    });
+  }
+  function sync(){
+    const on=!!isOn();
+    if(btn){ btn.setAttribute('aria-pressed',on);
+      const lbl=on?'Sair do ecrã inteiro':'Ecrã inteiro'; btn.title=lbl; btn.setAttribute('aria-label',lbl); }
+    links(); view();
+  }
+  if(btn){ if(!can) btn.style.display='none';
+    btn.addEventListener('click',()=>{ isOn()?out():req(); }); }
+  document.addEventListener('fullscreenchange',sync);
+  document.addEventListener('webkitfullscreenchange',sync);
+  if(can && wanted() && !isOn()){
+    req();
+    const evs=['click','pointerup','touchend','keydown'];
+    const once=()=>{ if(!isOn()) req(); else evs.forEach(t=>removeEventListener(t,once,true)); };
+    evs.forEach(t=>addEventListener(t,once,true));
+    setTimeout(()=>evs.forEach(t=>removeEventListener(t,once,true)),20000);
+  }
+  links(); sync();
+})();
+})();
+</script>
+
+<script>
+// ---------- selo de versão ----------
+(function(){
+  const st=document.createElement('style');
+  st.textContent='#excV{position:fixed;left:calc(9px + env(safe-area-inset-left,0px));'+
+    'bottom:calc(9px + env(safe-area-inset-bottom,0px));z-index:14;pointer-events:none;'+
+    'font:500 8.5px/1 ui-monospace,monospace;letter-spacing:.16em;padding:4px 6px;'+
+    'border-radius:3px;color:rgba(255,255,255,.62);background:rgba(0,0,0,.34);'+
+    '-webkit-backdrop-filter:blur(8px) brightness(.42);backdrop-filter:blur(8px) brightness(.42);'+
+    'transition:opacity .4s}'+
+    '.deck,footer{padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}'+'@media (max-width:560px){.deck,footer{padding-bottom:calc(30px + env(safe-area-inset-bottom,0px))}}'+'.hint,.meta{margin-bottom:2px}'+
+    'html.zen #excV{opacity:0}'+
+    '#excV[data-desperto="1"]::after{content:" \\25C9";color:#6BE7A8;margin-left:5px}';
+  document.head.appendChild(st);
+  const e=document.createElement('div');
+  e.id='excV'; e.textContent='05 · ESCUTA v4';
+  e.setAttribute('aria-label','versão deste ambiente');
+  document.body.appendChild(e);
+})();
+</script>
+
+<script>
+// ---------- ecrã desperto (Screen Wake Lock) ----------
+// em ecrã inteiro a peça comporta-se como um vídeo a correr: o aparelho não adormece.
+(function(){
+  let tranca=null;
+  const emCheio=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  function marca(){
+    const s=document.getElementById('excV');
+    if(s) s.setAttribute('data-desperto', tranca?'1':'0');
+  }
+  async function pedir(){
+    if(tranca || !('wakeLock' in navigator)) return;
+    try{
+      tranca=await navigator.wakeLock.request('screen');
+      tranca.addEventListener('release',()=>{ tranca=null; marca(); });
+    }catch(e){ tranca=null; }   // recusado pelo sistema, bateria fraca, etc.
+    marca();
+  }
+  function largar(){
+    if(!tranca) return;
+    try{ tranca.release(); }catch(e){}
+    tranca=null; marca();
+  }
+  const ver=()=>emCheio()?pedir():largar();
+  document.addEventListener('fullscreenchange',ver);
+  document.addEventListener('webkitfullscreenchange',ver);
+  // o sistema larga a tranca quando o separador vai para trás: recupera-se ao voltar
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden && emCheio()) pedir(); });
+  addEventListener('pagehide',largar);
+  ver();
+})();
+</script>
+</body>
+</html>
