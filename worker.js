@@ -121,7 +121,7 @@ function contar(cor) {
 
 
 // ---------- persistência ----------
-const ESQUEMA = 5;   // subir este número refaz as tabelas
+const ESQUEMA = 6;   // subir este número refaz as tabelas
 
 async function tabelas(db) {
   await db.prepare(`CREATE TABLE IF NOT EXISTS meta (chave TEXT PRIMARY KEY, valor TEXT)`).run();
@@ -134,7 +134,10 @@ async function tabelas(db) {
     db.prepare(`DROP TABLE IF EXISTS partidas`),
     db.prepare(`DROP TABLE IF EXISTS salas`),
     db.prepare(`DROP TABLE IF EXISTS presencas`),
-    db.prepare(`DROP TABLE IF EXISTS chaves`)
+    db.prepare(`DROP TABLE IF EXISTS chaves`),
+    db.prepare(`DROP TABLE IF EXISTS expedicoes`),
+    db.prepare(`DROP TABLE IF EXISTS exp_membros`),
+    db.prepare(`DROP TABLE IF EXISTS exp_achados`)
   ]);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS salas (
@@ -164,7 +167,19 @@ async function tabelas(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS partidas (
       sala TEXT NOT NULL, partida INTEGER NOT NULL, fim INTEGER NOT NULL,
       tabela TEXT NOT NULL, chave INTEGER NOT NULL DEFAULT 1,
-      PRIMARY KEY (sala, partida))`)
+      PRIMARY KEY (sala, partida))`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS expedicoes (
+      cod TEXT PRIMARY KEY, criada INTEGER NOT NULL, dono TEXT NOT NULL,
+      modo TEXT NOT NULL DEFAULT 'colaboracao', nome TEXT NOT NULL DEFAULT '')`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS exp_membros (
+      cod TEXT NOT NULL, v TEXT NOT NULL, alcunha TEXT NOT NULL DEFAULT '',
+      visto INTEGER NOT NULL, pontos INTEGER NOT NULL DEFAULT 0,
+      achados INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (cod, v))`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS exp_achados (
+      cod TEXT NOT NULL, chave TEXT NOT NULL, v TEXT NOT NULL, nome TEXT NOT NULL,
+      gal TEXT NOT NULL, tipo TEXT NOT NULL, proc TEXT NOT NULL, estado TEXT NOT NULL,
+      pontos INTEGER NOT NULL DEFAULT 1, t INTEGER NOT NULL,
+      PRIMARY KEY (cod, chave))`)
   ]);
   await db.prepare(`INSERT OR REPLACE INTO meta (chave,valor) VALUES ('esquema',?)`)
     .bind(String(ESQUEMA)).run();
@@ -398,6 +413,104 @@ async function autorizado(sala, dada, env) {
 
 async function abrirSala(db, cod) {
   return db.prepare(`SELECT * FROM salas WHERE sala=?`).bind(String(cod || '').toUpperCase().slice(0, 5)).first();
+}
+
+// ================= expedições do Cosmógrafo =================
+const PONTOS = { DS: 1, DC: 5, visitado: 3, estudo: 2 };
+
+async function cosmos(request, env, url) {
+  await tabelas(env.DB);
+  const agora = Date.now();
+
+  if (request.method === 'GET') {
+    const cod = (url.searchParams.get('cod') || '').toUpperCase().slice(0, 5);
+    const v = (url.searchParams.get('v') || '').slice(0, 24);
+    if (!cod) return json({ ok: true });
+    return json(await retratoExp(env.DB, cod, v, agora));
+  }
+
+  const corpo = await request.json().catch(() => null);
+  if (!corpo) return json({ erro: 'corpo inválido' }, 400);
+  const v = String(corpo.id || '').slice(0, 24) || 'anon';
+  const acao = corpo.acao || 'estado';
+
+  if (acao === 'criar') {
+    const modo = corpo.modo === 'concorrencia' ? 'concorrencia' : 'colaboracao';
+    const nome = String(corpo.nome || '').slice(0, 24);
+    for (let i = 0; i < 5; i++) {
+      const cod = codigo();
+      try {
+        await env.DB.prepare(`INSERT INTO expedicoes (cod,criada,dono,modo,nome) VALUES (?,?,?,?,?)`)
+          .bind(cod, agora, v, modo, nome).run();
+        await entrarExp(env.DB, cod, v, corpo.alcunha, agora);
+        return json(await retratoExp(env.DB, cod, v, agora));
+      } catch (e) { /* código repetido */ }
+    }
+    return json({ erro: 'não foi possível criar expedição' }, 500);
+  }
+
+  const cod = String(corpo.cod || '').toUpperCase().slice(0, 5);
+  const exp = await env.DB.prepare(`SELECT * FROM expedicoes WHERE cod=?`).bind(cod).first();
+  if (!exp) return json({ erro: 'expedição não encontrada' }, 404);
+  await entrarExp(env.DB, cod, v, corpo.alcunha, agora);
+
+  if (acao === 'registar') {
+    const a = corpo.achado || {};
+    const chave = String(a.k || '').slice(0, 64);
+    if (!chave) return json({ erro: 'achado sem chave' }, 400);
+    const proc = a.p === 'DC' ? 'DC' : 'DS';
+    const estado = a.e === 'visitado' ? 'visitado' : 'reconhecido';
+    let pontos = PONTOS[proc] + (estado === 'visitado' ? PONTOS.visitado : 0)
+               + (a.estudos ? Math.min(3, a.estudos | 0) * PONTOS.estudo : 0);
+    const ja = await env.DB.prepare(`SELECT v, pontos, estado FROM exp_achados WHERE cod=? AND chave=?`)
+      .bind(cod, chave).first();
+    if (ja && exp.modo === 'colaboracao' && ja.v !== v && ja.estado === estado) {
+      return json(await retratoExp(env.DB, cod, v, agora));   // já estava no mapa comum
+    }
+    const ganho = ja ? Math.max(0, pontos - ja.pontos) : pontos;
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO exp_achados (cod,chave,v,nome,gal,tipo,proc,estado,pontos,t)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(cod,chave) DO UPDATE SET estado=excluded.estado, pontos=excluded.pontos, t=excluded.t`)
+        .bind(cod, chave, v, String(a.n || '?').slice(0, 40), String(a.g || '?').slice(0, 40),
+              String(a.tipo || '?').slice(0, 40), proc, estado, pontos, agora),
+      env.DB.prepare(`UPDATE exp_membros SET pontos=pontos+?, achados=achados+? WHERE cod=? AND v=?`)
+        .bind(ganho, ja ? 0 : 1, cod, v)
+    ]);
+    return json(await retratoExp(env.DB, cod, v, agora));
+  }
+
+  return json(await retratoExp(env.DB, cod, v, agora));
+}
+
+async function entrarExp(db, cod, v, alcunha, agora) {
+  const nome = String(alcunha || '').slice(0, 18);
+  const m = await db.prepare(`SELECT v FROM exp_membros WHERE cod=? AND v=?`).bind(cod, v).first();
+  if (!m) {
+    await db.prepare(`INSERT INTO exp_membros (cod,v,alcunha,visto) VALUES (?,?,?,?)`)
+      .bind(cod, v, nome, agora).run();
+  } else {
+    await db.prepare(`UPDATE exp_membros SET visto=?${nome ? ', alcunha=?' : ''} WHERE cod=? AND v=?`)
+      .bind(...(nome ? [agora, nome, cod, v] : [agora, cod, v])).run();
+  }
+}
+
+async function retratoExp(db, cod, v, agora) {
+  const exp = await db.prepare(`SELECT * FROM expedicoes WHERE cod=?`).bind(cod).first();
+  if (!exp) return { erro: 'expedição não encontrada' };
+  const r = await db.batch([
+    db.prepare(`SELECT v, alcunha, pontos, achados, visto FROM exp_membros WHERE cod=? ORDER BY pontos DESC`).bind(cod),
+    db.prepare(`SELECT chave, v, nome, gal, tipo, proc, estado, t FROM exp_achados
+                WHERE cod=? ORDER BY t DESC LIMIT 240`).bind(cod)
+  ]);
+  const membros = r[0].results.map(m => ({
+    alcunha: m.alcunha || 'sem nome', pontos: m.pontos | 0, achados: m.achados | 0,
+    eu: m.v === v, online: (agora - m.visto) < 90000
+  }));
+  const achados = r[1].results
+    .filter(a => exp.modo === 'colaboracao' || a.v === v)
+    .map(a => ({ k: a.chave, n: a.nome, g: a.gal, tipo: a.tipo, p: a.proc, e: a.estado, meu: a.v === v }));
+  return { cod, modo: exp.modo, nome: exp.nome, dono: exp.dono === v, membros, achados };
 }
 
 export default {
