@@ -30,17 +30,17 @@
     -webkit-backdrop-filter:blur(9px) brightness(.36) saturate(.9);
     backdrop-filter:blur(9px) brightness(.36) saturate(.9)}
   h1{font-family:"Chakra Petch",sans-serif;font-weight:700;text-transform:uppercase;
-    font-size:clamp(19px,4.2vw,40px);line-height:1;letter-spacing:.01em}
+    font-size:clamp(15px,3.4vw,34px);line-height:1;letter-spacing:.01em}
   h1 em{display:block;font-style:normal;font-weight:500;font-family:"IBM Plex Mono",monospace;
     font-size:clamp(8.5px,1.4vw,11px);letter-spacing:.3em;color:var(--dim);margin-top:.9em}
   .galaxia{text-align:right;padding:9px 12px;border-radius:5px;max-width:56vw}
   .galaxia b{display:block;font-family:"Chakra Petch",sans-serif;font-weight:700;
-    font-size:clamp(15px,3.4vw,26px);line-height:1.05;letter-spacing:.01em}
+    font-size:clamp(12px,2.6vw,22px);line-height:1.05;letter-spacing:.01em}
   .galaxia span{display:block;font-size:10px;color:var(--dim);letter-spacing:.14em;margin-top:5px}
 
-  .bussola{pointer-events:auto;align-self:end;justify-self:start;display:flex;flex-direction:column;gap:5px;
-    padding:8px 11px;border-radius:5px;margin-bottom:9px;font-size:10.5px;color:var(--dim);
-    max-width:min(320px,80vw)}
+  .bussola{pointer-events:auto;align-self:end;justify-self:start;display:flex;flex-direction:column;gap:3px;
+    padding:6px 9px;border-radius:4px;margin-bottom:6px;font-size:9.5px;color:var(--dim);
+    max-width:min(290px,78vw)}
   .bussola span{display:inline-block;vertical-align:2px}
   .linhaB{display:flex;align-items:center;gap:2px;pointer-events:auto}
   .linhaB span{flex:1}
@@ -52,46 +52,49 @@
   .alvo{display:inline-block;width:11px;height:11px;margin-right:7px;vertical-align:-1px;
     background:linear-gradient(to top,transparent 42%,var(--ds) 42%);clip-path:polygon(50% 0,100% 100%,0 100%)}
   .alvo.dc{background:linear-gradient(to top,transparent 42%,var(--dc) 42%)}
-  /* tira mínima: o que se precisa de saber sem abrir nada */
-  .tira{align-self:end;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
-    padding:5px 9px;border-radius:4px;margin-bottom:7px;max-width:min(560px,94vw);
-    font-size:11px;pointer-events:auto;cursor:pointer}
-  .tira b{font-weight:500;color:var(--luz);font-size:12px;
-    max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .tira i{font-style:normal;color:var(--dim);font-size:10px;
-    max-width:20ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .tira span{margin-left:auto;font-variant-numeric:tabular-nums;font-size:11px;color:var(--dc)}
-  .tira em{font-style:normal;font-size:9px;letter-spacing:.1em;color:var(--dim)}
-
-  /* instrumentos: só quando se pede */
-  .instr{position:relative;align-self:end;margin-bottom:7px;padding:11px 12px 9px;
-    border-radius:5px;pointer-events:auto;max-width:min(560px,94vw)}
-  .instr[hidden]{display:none}
-  .ig{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px 12px}
-  .ic span{display:block;color:var(--dim);font-size:8px;letter-spacing:.16em;margin-bottom:2px}
-  .ic b{font-weight:500;font-variant-numeric:tabular-nums;font-size:11.5px;
-    display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ic[data-clicavel]{cursor:pointer}
-  .ic[data-clicavel]:hover b{color:var(--dc)}
-  .xIns{position:absolute;top:4px;right:6px;width:24px;height:24px;padding:0;border:0;
-    background:transparent;color:var(--dim);font-size:12px;cursor:pointer}
-  .xIns:hover{color:var(--luz)}
-
+  .readout{align-self:end;display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;font-size:10px;
+    align-items:stretch}
+  .cell{padding:4px 7px 5px;border-radius:3px;background:rgba(4,5,11,.42);
+    border:1px solid rgba(230,236,255,.12);
+    -webkit-backdrop-filter:blur(9px) brightness(.36) saturate(.9);
+    backdrop-filter:blur(9px) brightness(.36) saturate(.9)}
+  .cell span{display:block;color:var(--dim);font-size:7.5px;letter-spacing:.16em;margin-bottom:1px}
+  .cell b{font-weight:500;font-variant-numeric:tabular-nums;font-size:11.5px;line-height:1.25}
+  .cell.mestra b{font-size:12.5px}
+  .instr{display:grid;place-items:center;width:30px;font-size:13px;color:var(--dim);cursor:pointer}
+  .instr[aria-expanded="true"]{color:var(--dc);border-color:var(--dc)}
+  /* painel de instrumentos: tudo o que não se lê a andar */
+  #instr{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));
+    bottom:calc(104px + env(safe-area-inset-bottom,0px));z-index:13;
+    padding:11px 13px;border:1px solid var(--line);border-radius:5px;
+    background:rgba(4,5,11,.9);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+    box-shadow:0 12px 40px rgba(0,0,0,.55);pointer-events:auto;max-width:min(330px,86vw)}
+  #instr[hidden]{display:none}
+  .grelhaI{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
+  .grelhaI span{display:block;color:var(--dim);font-size:7.5px;letter-spacing:.16em;margin-bottom:1px}
+  .grelhaI b{font-weight:500;font-variant-numeric:tabular-nums;font-size:12px}
+  #celSalto{cursor:pointer}
+  #celSalto:hover b{color:var(--dc)}
   /* menu de comandos secundários */
-  .menu{position:absolute;right:0;bottom:calc(100% + 8px);display:flex;flex-direction:column;
-    min-width:200px;padding:6px;border-radius:5px;pointer-events:auto;z-index:12}
-  .menu[hidden]{display:none}
-  .menu button,.menu a.btn{text-align:left;border:0;border-radius:3px;padding:9px 10px;
-    font-size:9.5px;letter-spacing:.1em;text-transform:lowercase}
-  .menu button:hover,.menu a.btn:hover{background:rgba(107,231,168,.14);color:var(--luz)}
+  #mais{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));
+    bottom:calc(104px + env(safe-area-inset-bottom,0px));z-index:13;
+    display:flex;flex-direction:column;gap:1px;padding:5px;border:1px solid var(--line);
+    border-radius:5px;background:rgba(4,5,11,.92);
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+    box-shadow:0 12px 40px rgba(0,0,0,.55);pointer-events:auto;min-width:190px}
+  #mais[hidden]{display:none}
+  #mais button,#mais a.btn{text-align:left;border:0;border-radius:3px;padding:9px 11px;
+    font-size:9.5px;letter-spacing:.1em;color:var(--luz);background:transparent;width:100%}
+  #mais button:hover,#mais a.btn:hover{background:rgba(107,231,168,.14);color:var(--dc)}
+  .forte{color:var(--luz)}
 
-  .deck{position:relative;display:flex;gap:6px;flex-wrap:wrap;align-items:center;pointer-events:auto;
+  .deck{display:flex;gap:7px;flex-wrap:wrap;align-items:center;pointer-events:auto;
     padding-bottom:calc(26px + env(safe-area-inset-bottom,0px))}
   .group{display:flex;border:1px solid var(--line);border-radius:2px;overflow:hidden;
     background:rgba(4,5,11,.82);backdrop-filter:blur(8px)}
   button,a.btn{font:inherit;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
     display:inline-block;text-decoration:none;line-height:normal;background:transparent;
-    color:var(--dim);border:0;border-right:1px solid var(--line);padding:5px 8px;cursor:pointer;
+    color:var(--dim);border:0;border-right:1px solid var(--line);padding:6px 8px;cursor:pointer;
     transition:.18s}
   .group button:last-child{border-right:0}
   button:hover,a.btn:hover{color:var(--luz);background:rgba(107,231,168,.14)}
@@ -215,13 +218,7 @@
   .st.vis{color:var(--dc)} .st.rec{color:var(--ds)}
 
   @media (max-width:640px){ h1 em{letter-spacing:.2em} .galaxia{max-width:52vw} }
-  @media (pointer:coarse){ button,a.btn{padding:7px 9px;font-size:9px} }
-  @media (max-width:560px){
-    .ig{grid-template-columns:repeat(3,1fr)}
-    .tira{font-size:10px}
-    .tira b{max-width:14ch}
-    .tira i{display:none}
-  }
+  @media (pointer:coarse){ button,a.btn{padding:8px 10px;font-size:9.5px} }
 </style>
 </head>
 <body>
@@ -239,55 +236,53 @@
   </header>
 
   <div class="bussola plate" id="bussola"></div>
-
-  <div class="tira plate" id="tira">
-    <b id="tLugar">—</b><i id="tTipo">—</i>
-    <span id="tAlvo">—</span>
-    <em id="tJa" title="estado desta área">·</em>
+  <div class="readout" style="pointer-events:none">
+    <div class="cell mestra" id="celPontaria" style="pointer-events:auto">
+      <span>PONTARIA</span><b id="rAlvo">—</b></div>
+    <div class="cell mestra" id="celLugar" style="pointer-events:auto">
+      <span id="rTipo">—</span><b id="rEst">—</b></div>
+    <button class="cell instr" id="bInstr" style="pointer-events:auto"
+            title="instrumentos" aria-expanded="false">⣿</button>
   </div>
 
-  <div class="instr plate" id="instr" hidden>
-    <button class="xIns" id="instrX" aria-label="Fechar">✕</button>
-    <div class="ig">
-      <div class="ic"><span>MODO</span><b id="rModo">—</b></div>
-      <div class="ic"><span>ESCALA</span><b id="rEsc">—</b></div>
-      <div class="ic"><span>PROFUND.</span><b id="rProf">normal</b></div>
-      <div class="ic"><span>VELOCIDADE</span><b id="rVel">—</b></div>
-      <div class="ic"><span>PONTARIA</span><b id="rAlvo">—</b></div>
-      <div class="ic"><span>ESTA ÁREA</span><b id="rJa">—</b></div>
-      <div class="ic"><span>ACHADOS</span><b id="rAch">0</b></div>
-      <div class="ic" data-clicavel><span>SALTOS ⚙</span><b id="rSalto">—</b></div>
-      <div class="ic"><span>EXPEDIÇÃO</span><b id="rExp">—</b></div>
-      <div class="ic"><span>LUGAR</span><b id="rEst">—</b></div>
-      <div class="ic"><span>TIPO</span><b id="rTipo">—</b></div>
+  <div id="instr" hidden>
+    <div class="grelhaI">
+      <div><span>MODO</span><b id="rModo">—</b></div>
+      <div><span>ESCALA</span><b id="rEsc">—</b></div>
+      <div><span>VELOCIDADE</span><b id="rVel">—</b></div>
+      <div><span>PROFUNDIDADE</span><b id="rProf">normal</b></div>
+      <div><span>ESTA ÁREA</span><b id="rJa">—</b></div>
+      <div><span>ACHADOS</span><b id="rAch">0</b></div>
+      <div id="celSalto"><span>SALTOS ⚙</span><b id="rSalto">—</b></div>
+      <div><span>EXPEDIÇÃO</span><b id="rExp">—</b></div>
     </div>
   </div>
 
   <div class="deck">
     <div class="group">
-      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">← Índice</a>
+      <a class="btn" data-nav="index.html" href="index.html" target="_top" title="Voltar ao índice">←</a>
     </div>
     <div class="group" role="group" aria-label="Modo de exploração">
       <button data-modo="fisica">Física</button>
       <button data-modo="estatica" aria-pressed="true">Estática</button>
     </div>
     <div class="group">
-      <button id="bMarcar">Registar</button>
-      <button id="bFicha" title="Ficha do lugar e inspeção">Ficha</button>
-      <button id="bInstr" title="Instrumentos" aria-expanded="false">⊞</button>
-      <button id="bMais" title="Mais comandos" aria-expanded="false">⋯</button>
+      <button id="bMarcar" class="forte">Registar</button>
+      <button id="bMais" aria-expanded="false" title="mais comandos">⋯</button>
       <button class="fsbtn" id="bFs" aria-pressed="false" aria-label="Ecrã inteiro" title="Ecrã inteiro"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="ic-in"><path d="M4 14v6h6M4 20l7-7M20 10V4h-6M20 4l-7 7"/></g><g class="ic-out"><path d="M10 20v-6H4M4 20l6-6M14 4v6h6M20 4l-6 6"/></g></svg></button>
-    </div>
-    <div class="menu plate" id="menu" hidden>
-      <button id="bCoord">⌗ ir para coordenada</button>
-      <button id="bSalto">saltar ao acaso</button>
-      <button id="bMapa">mapa</button>
-      <button id="bCatalogo">catálogo</button>
-      <button id="bExp">expedição</button>
-      <a class="btn" href="admin.html" target="_blank" rel="noopener">administração</a>
     </div>
     <p class="hint plate" id="hint">arraste para olhar em volta · a bússola aponta o que vale a pena</p>
   </div>
+</div>
+
+<div id="mais" hidden>
+  <button id="bFicha">Ficha e inspeção</button>
+  <button id="bCoord">⌗ Ir para coordenada</button>
+  <button id="bSalto">Saltar ao acaso</button>
+  <button id="bMapa">Mapa</button>
+  <button id="bCatalogo">Catálogo</button>
+  <button id="bExp">Expedição</button>
+  <a class="btn" href="admin.html" target="_blank" rel="noopener">Administração</a>
 </div>
 
 <div id="proc" role="button" tabindex="0" aria-label="Procedência dos dados e versão da região">
@@ -671,16 +666,12 @@ function atualizar(){
     : (GAL[gi].d>=1e6 ? (GAL[gi].d/1e6).toFixed(2)+' milhões de anos-luz'
                       : Math.round(GAL[gi].d/1000)+' mil anos-luz') + ' · ' + GAL[gi].tipo;
   el('rEst').textContent=lugar.nome;
-  el('rTipo').textContent=lugar.tipo.n;
+  el('rTipo').textContent=lugar.tipo.n.toUpperCase();
   el('rModo').textContent = modo==='fisica' ? (temPos?'físico':'à espera de sinal') : 'estático';
   el('rEsc').textContent = esc.nome+' · '+esc.raio+' m';
   el('rVel').textContent = modo==='fisica' ? (vel*3.6).toFixed(1)+' km/h' : '—';
   el('rAch').textContent = achados.length;
   const d=distAncora(), pr=premioPara(d);
-  el('tLugar').textContent=lugar.nome;
-  el('tTipo').textContent=lugar.tipo.n;
-  el('tAlvo').textContent=fmtDist(d);
-  el('tAlvo').style.color = pr.pts>=4?'var(--dc)' : pr.pts>=2?'var(--luz)' : 'var(--dim)';
   const ja=achados.find(a=>a.k===lugar.chave);
   const pAlvo=el('rAlvo');
   pAlvo.textContent=fmtDist(d)+' · '+pr.n;
@@ -689,12 +680,7 @@ function atualizar(){
   if(ja){
     rj.textContent = 'sim · '+fmtDist(ja.d===undefined?0:ja.d)+(ja.e==='visitado'?' · visitado':'');
     rj.style.color='var(--ds)';
-    el('tJa').textContent = ja.e==='visitado' ? '✦ visitado' : '✦ registado';
-    el('tJa').style.color='var(--ds)';
-  } else {
-    rj.textContent='por registar'; rj.style.color='var(--dim)';
-    el('tJa').textContent='○ por registar'; el('tJa').style.color='var(--dim)';
-  }
+  } else { rj.textContent='por registar'; rj.style.color='var(--dim)'; }
   reporSaltos();
   el('rSalto').textContent = semLimite() ? '∞' : (saltos+' / '+SALTO_MAX);
 
@@ -1652,37 +1638,33 @@ function abrirExpedicao(){
     };
   }
 }
-// ---------- instrumentos e menu ----------
+// ---------- painéis recolhíveis ----------
 const painelInstr=document.getElementById('instr'), btInstr=document.getElementById('bInstr');
-const menu=document.getElementById('menu'), btMais=document.getElementById('bMais');
-function abrirInstr(v){
-  const on = v===undefined ? painelInstr.hidden : v;
-  painelInstr.hidden=!on; btInstr.setAttribute('aria-expanded',on);
-  btInstr.classList.toggle('on',on);
-  if(on){ menu.hidden=true; btMais.setAttribute('aria-expanded',false); }
+const painelMais=document.getElementById('mais'), btMais=document.getElementById('bMais');
+function abrirPainel(qual){
+  const eInstr=qual==='instr';
+  painelInstr.hidden = !(eInstr && painelInstr.hidden);
+  painelMais.hidden  = !(!eInstr && painelMais.hidden);
+  btInstr.setAttribute('aria-expanded', !painelInstr.hidden);
+  btMais.setAttribute('aria-expanded', !painelMais.hidden);
 }
-function abrirMenu(v){
-  const on = v===undefined ? menu.hidden : v;
-  menu.hidden=!on; btMais.setAttribute('aria-expanded',on);
-  btMais.classList.toggle('on',on);
-  if(on) abrirInstr(false);
-}
-btInstr.onclick=e=>{ e.stopPropagation(); abrirInstr(); };
-btMais.onclick=e=>{ e.stopPropagation(); abrirMenu(); };
-document.getElementById('instrX').onclick=()=>abrirInstr(false);
-document.getElementById('tira').onclick=()=>abrirInstr();
-painelInstr.addEventListener('pointerdown',e=>e.stopPropagation());
-menu.addEventListener('pointerdown',e=>e.stopPropagation());
-addEventListener('pointerdown',()=>{ abrirInstr(false); abrirMenu(false); });
-menu.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>abrirMenu(false)));
+btInstr.onclick=e=>{ e.stopPropagation(); abrirPainel('instr'); };
+btMais.onclick=e=>{ e.stopPropagation(); abrirPainel('mais'); };
+[painelInstr,painelMais].forEach(p=>p.addEventListener('pointerdown',e=>e.stopPropagation()));
+addEventListener('pointerdown',()=>{
+  if(!painelInstr.hidden||!painelMais.hidden){ painelInstr.hidden=true; painelMais.hidden=true;
+    btInstr.setAttribute('aria-expanded',false); btMais.setAttribute('aria-expanded',false); }
+});
+function fecharMais(){ painelMais.hidden=true; btMais.setAttribute('aria-expanded',false); }
 
 document.getElementById('bFicha').onclick=()=>{
+  fecharMais();
   if(!regiao.lugar) return;
   abrirFicha(regiao.lugar, regiao.gi);
   const b=document.getElementById('inspAbrir');   // já abre a caixa de inspeção
   if(b) b.click();
 };
-document.getElementById('bCoord').onclick=()=>{
+document.getElementById('bCoord').onclick=()=>{ fecharMais();
   abrirFolha('<h2>Ir para uma coordenada</h2>'+
     '<p>Doze símbolos levam-no ao ponto exato, mesmo que nunca lá tenha estado. '+
     'Aceita minúsculas e sem hífens.</p>'+
@@ -1699,7 +1681,7 @@ document.getElementById('bCoord').onclick=()=>{
   document.getElementById('cdIr').addEventListener('keydown',e=>{ if(e.key==='Enter') ir(); });
   document.getElementById('cdIr').focus();
 };
-document.getElementById('bSalto').onclick=saltar;
+document.getElementById('bSalto').onclick=()=>{ fecharMais(); saltar(); };
 function nomeCiclo(seg){ return seg<60?seg+' s':seg<3600?(seg/60)+' min':(seg/3600)+' h'; }
 function abrirSaltos(){
   abrirFolha('<h2>Saltos</h2>'+
@@ -1738,7 +1720,7 @@ function abrirSaltos(){
   });
   pinta();
 }
-document.querySelector('#rSalto').parentNode.onclick=abrirSaltos;
+document.getElementById('celSalto').onclick=e=>{ e.stopPropagation(); abrirPainel('nada'); abrirSaltos(); };
 // procura exemplos reais de um tipo, varrendo o globo até os encontrar
 function amostrasDe(tipo,quantas,tentativas){
   const achou=[];
@@ -1793,9 +1775,9 @@ function abrirCatalogo(){
   document.querySelectorAll('[data-am]').forEach(b=>b.onclick=()=>abrirAmostras(b.dataset.am));
   ligarAjuda('ajC','cxC');
 }
-document.getElementById('bCatalogo').onclick=abrirCatalogo;
-document.getElementById('bMapa').onclick=abrirMapa;
-document.getElementById('bExp').onclick=abrirExpedicao;
+document.getElementById('bCatalogo').onclick=()=>{ fecharMais(); abrirCatalogo(); };
+document.getElementById('bMapa').onclick=()=>{ fecharMais(); abrirMapa(); };
+document.getElementById('bExp').onclick=()=>{ fecharMais(); abrirExpedicao(); };
 setInterval(()=>{ if(!document.hidden) sondarExp(); }, 15000);
 (function(){ try{ const c=localStorage.getItem('cosmo_exp'); if(c){ expCod=c; sondarExp(); } }catch(e){} })();
 
